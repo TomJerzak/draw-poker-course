@@ -694,8 +694,9 @@ export function PlayScreen({ lesson, seed, onFinish, onExit, onFreeEnd }: Props)
                     <span className="stack-amount">
                       <ChipStack amount={me.stack} max={5} small /> <AnimatedNumber value={me.stack} />
                     </span>{' '}
-                    <span className={stackDiff >= 0 ? 'pos' : 'neg'}>
-                      (bilans {stackDiff > 0 ? '+' : stackDiff < 0 ? '−' : ''}
+                    <span className={stackDiff >= 0 ? 'pos' : 'neg'} title="Bilans od początku lekcji">
+                      (<span className="sr-only">bilans </span>
+                      {stackDiff > 0 ? '+' : stackDiff < 0 ? '−' : ''}
                       {Math.abs(stackDiff)})
                     </span>
                     {me.betThisRound > 0 && !complete && <span className="bet"> · w tej rundzie: {me.betThisRound}</span>}
