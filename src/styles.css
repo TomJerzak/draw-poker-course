@@ -615,3 +615,8 @@ body { background: radial-gradient(ellipse at top, #17291f 0%, #0a120d 70%) fixe
 @media (max-width: 760px) {
   .table-oval .seat.opp .avatar { width: 44px; height: 44px; font-size: 10px; }
 }
+
+/* Telefon: żeton rozdającego obok koła (po prawej), a nie w osobnym rzędzie pod nim */
+@media (max-width: 760px) {
+  .table-oval .seat.opp .seat-head { position: absolute; top: 22px; left: calc(50% + 26px); transform: translateY(-50%); margin: 0; }
+}
