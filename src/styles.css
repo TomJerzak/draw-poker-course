@@ -327,7 +327,7 @@ body { background: radial-gradient(ellipse at top, #17291f 0%, #0a120d 70%) fixe
 @media (max-width: 760px) {
   .table.table-oval {
     height: auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
-    gap: 12px 6px; align-items: start; padding: 22px 12px 14px;
+    gap: 30px 6px; align-items: start; padding: 34px 12px 14px; /* odstęp na dymki akcji nad kołami */
   }
   .table-oval .rail { inset: 0; border-radius: 28px; }
   .table-oval .felt { inset: 8px; border-radius: 22px; }
