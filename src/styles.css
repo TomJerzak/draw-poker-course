@@ -347,3 +347,60 @@ body { background: radial-gradient(ellipse at top, #17291f 0%, #0a120d 70%) fixe
     animation: none !important; transition: none !important;
   }
 }
+
+/* =====================================================================
+   Nowy wygląd – etap 2: żetony i ich animacje
+   ===================================================================== */
+.chip-stack { display: inline-flex; align-items: flex-end; gap: 2px; vertical-align: middle; }
+.chip-col { position: relative; width: 26px; height: calc(10px + (var(--h) - 1) * 4px); display: inline-block; }
+.chip {
+  position: absolute; left: 0; bottom: calc(var(--i) * 4px); width: 26px; height: 10px; border-radius: 50%;
+  background:
+    repeating-conic-gradient(from 0deg, var(--e) 0 12deg, transparent 12deg 45deg),
+    var(--c);
+  box-shadow: inset 0 0 0 2px var(--c), inset 0 0 0 3px rgba(255,255,255,.5), 0 2px 0 rgba(0,0,0,.45);
+}
+.chip-stack.small .chip-col { width: 18px; height: calc(7px + (var(--h) - 1) * 3px); }
+.chip-stack.small .chip { width: 18px; height: 7px; bottom: calc(var(--i) * 3px); }
+.stack-amount { display: inline-flex; align-items: center; gap: 4px; font-weight: 700; }
+
+/* Pula na środku stołu – „podskakuje”, gdy rośnie */
+.pot-chips { display: flex; justify-content: center; margin: 0 auto 4px; animation: pot-bump .35s ease-out; }
+@keyframes pot-bump { 0% { scale: .85; } 60% { scale: 1.08; } 100% { scale: 1; } }
+
+/* Żetony zakładu – wjeżdżają od strony gracza */
+.bet-spot {
+  position: absolute; z-index: 2; transform: translate(-50%, -50%);
+  display: flex; align-items: center; gap: 4px; padding: 2px 8px 2px 4px; border-radius: 14px;
+  background: rgba(0,0,0,.28); color: var(--gold); font-weight: 700; font-size: .85em;
+}
+.bet-spot.from-top { animation: bet-in-top .45s ease-out; }
+.bet-spot.from-bottom { animation: bet-in-bottom .45s ease-out; }
+@keyframes bet-in-top { from { translate: 0 -70px; opacity: 0; } to { translate: 0 0; opacity: 1; } }
+@keyframes bet-in-bottom { from { translate: 0 80px; opacity: 0; } to { translate: 0 0; opacity: 1; } }
+
+/* Wygrana – żetony z puli lecą do zwycięzcy */
+.win-fly {
+  position: absolute; z-index: 5; left: 50%; top: 42%; transform: translate(-50%, -50%); pointer-events: none;
+  animation: win-fly 1s ease-in-out .15s both;
+}
+@keyframes win-fly {
+  0% { left: 50%; top: 42%; opacity: 0; scale: .8; }
+  15% { opacity: 1; scale: 1.1; }
+  85% { opacity: 1; }
+  100% { left: var(--to-x); top: var(--to-y); opacity: 0; scale: .9; }
+}
+
+@media (max-width: 760px) {
+  .bet-spot, .win-fly { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pot-chips, .bet-spot, .win-fly { animation: none !important; }
+  .win-fly { display: none; }
+}
+/* Na szerokim ekranie zakład rywala widać jako żetony na stole – tekst zostaje tylko dla czytników ekranu */
+@media (min-width: 761px) {
+  .table-oval .seat.opp .seat-info .bet {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+  }
+}

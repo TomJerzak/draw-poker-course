@@ -18,6 +18,7 @@ import { Lesson } from '../lessons/types';
 import { pluralPl } from '../engine/cards';
 import { FreeStats, LEVEL_PL } from './screens';
 import { Card } from './Card';
+import { AnimatedNumber, ChipStack } from './Chips';
 import { HandRankings } from './HandRankings';
 import { Glossary, RichText } from './RichText';
 
@@ -75,6 +76,20 @@ function seatPosition(k: number, n: number): { x: number; y: number } {
 /** Którą z kolei kartę w rundzie rozdawania dostaje gracz (od lewej strony rozdającego). */
 function dealOrder(player: number, dealer: number, n: number): number {
   return (player - dealer - 1 + n) % n;
+}
+
+/** Miejsce na żetony zakładu: między graczem a środkiem stołu. */
+function betSpotPosition(player: number, opponents: number): CSSProperties {
+  if (player === HUMAN) return { left: '50%', top: 'calc(100% - 238px)' };
+  const p = seatPosition(player - 1, opponents);
+  return { left: `${p.x + (50 - p.x) * 0.3}%`, top: `calc(${p.y}% + 150px)` };
+}
+
+/** Dokąd lecą żetony wygranej: do miejsca zwycięzcy. */
+function winTarget(player: number, opponents: number): CSSProperties {
+  if (player === HUMAN) return { ['--to-x' as string]: '50%', ['--to-y' as string]: 'calc(100% - 40px)' };
+  const p = seatPosition(player - 1, opponents);
+  return { ['--to-x' as string]: `${p.x}%`, ['--to-y' as string]: `calc(${p.y}% + 30px)` };
 }
 
 /** Położenie krążka rozdającego: obok awatara rozdającego. */
@@ -411,7 +426,11 @@ export function PlayScreen({ lesson, seed, onFinish, onExit, onFreeEnd }: Props)
                 ))}
               </div>
               <div className="seat-info">
-                {chips && <span>💰 {p.stack}</span>}
+                {chips && (
+                  <span className="stack-amount">
+                    <ChipStack amount={p.stack} max={5} small /> <AnimatedNumber value={p.stack} />
+                  </span>
+                )}
                 {p.betThisRound > 0 && !complete && <span className="bet">w tej rundzie: {p.betThisRound}</span>}
                 <span className="status">{lastActionLabel(g, i)}</span>
               </div>
@@ -424,12 +443,43 @@ export function PlayScreen({ lesson, seed, onFinish, onExit, onFreeEnd }: Props)
           );
         })}
 
+        {/* Żetony postawione w bieżącej rundzie – leżą przed graczem, bliżej środka stołu. */}
+        {chips &&
+          !complete &&
+          g.players.map((p, i) =>
+            p.betThisRound > 0 ? (
+              <div
+                key={`bet-${session.handNo}-${g.phase}-${i}-${p.betThisRound}`}
+                className={`bet-spot ${i === HUMAN ? 'from-bottom' : 'from-top'}`}
+                style={betSpotPosition(i, g.players.length - 1)}
+                aria-hidden
+              >
+                <ChipStack amount={p.betThisRound} mixed max={8} perColumn={4} small />
+                <span className="bet-amount">{p.betThisRound}</span>
+              </div>
+            ) : null,
+          )}
+
+        {/* Po rozdaniu pula „przelatuje” do zwycięzcy (przy remisie – do każdego ze zwycięzców). */}
+        {chips &&
+          complete &&
+          autoDone &&
+          wonAmount > 0 &&
+          g.winners.map((w) => (
+            <div key={`win-${session.handNo}-${w}`} className="win-fly" style={winTarget(w, g.players.length - 1)} aria-hidden>
+              <ChipStack amount={Math.floor(wonAmount / g.winners.length)} mixed max={16} perColumn={4} />
+            </div>
+          ))}
+
         {/* Krążek rozdającego – na szerokim ekranie płynnie przechodzi do następnego gracza. */}
         <div className="dealer-puck" style={dealerPuckPosition(g.dealer, g.players.length - 1)}>
           <DealerBadge />
         </div>
 
         <div className="center">
+          {chips && !complete && pot(g) > 0 && (
+            <ChipStack key={`pot-${session.handNo}-${pot(g)}`} amount={pot(g)} mixed max={16} perColumn={4} className="pot-chips" />
+          )}
           {chips && <div className="pot">Pula: {complete ? wonAmount : pot(g)}</div>}
           <div className="phase">{phaseLabel}</div>
           {steps.length >= 3 && (
@@ -473,7 +523,9 @@ export function PlayScreen({ lesson, seed, onFinish, onExit, onFreeEnd }: Props)
                 )}
                 {chips && (
                   <span>
-                    💰 {me.stack}{' '}
+                    <span className="stack-amount">
+                      <ChipStack amount={me.stack} max={5} small /> <AnimatedNumber value={me.stack} />
+                    </span>{' '}
                     <span className={stackDiff >= 0 ? 'pos' : 'neg'}>
                       (bilans {stackDiff > 0 ? '+' : stackDiff < 0 ? '−' : ''}
                       {Math.abs(stackDiff)})
