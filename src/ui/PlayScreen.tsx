@@ -780,7 +780,14 @@ export function PlayScreen({ lesson, seed, onFinish, onExit, onFreeEnd }: Props)
         {!auto && !complete && g.toAct !== HUMAN && <p className="muted">Teraz ruch: {names[g.toAct ?? 0]}…</p>}
       </section>
 
-      <details className="log" open>
+      {/* Przebieg rozdania jest domyślnie zwinięty – uczeń sam decyduje, czy chce go czytać.
+          Po rozwinięciu przewijamy do najnowszego wpisu. */}
+      <details
+        className="log"
+        onToggle={(e) => {
+          if (e.currentTarget.open) logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
+        }}
+      >
         <summary>Przebieg rozdania</summary>
         <div ref={logRef} className="log-body">
           {(awaitingQuiz ? log.filter((l) => !/^Wygryw/.test(l) && !/ wygrywa /.test(l)) : log).map((l, i) => (
