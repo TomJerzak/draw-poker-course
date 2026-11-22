@@ -573,3 +573,10 @@ body { background: radial-gradient(ellipse at top, #17291f 0%, #0a120d 70%) fixe
 .table-oval .hand-name.win { display: inline-flex; white-space: nowrap; padding: 4px 14px; }
 .table-oval .hand-name.win .hn-kind { color: #2a1d05; font-size: 1.12em; }
 .me-info .hand-name { align-items: flex-start; }
+
+/* Komunikat startowy */
+.start-notice .notice-warning { border-left: 4px solid var(--gold, #d4a93a); }
+.start-notice .notice-warning p { margin: 0 0 8px; }
+.start-notice .notice-warning p:last-child { margin-bottom: 0; }
+.start-notice .notice-warning a { color: inherit; font-weight: 700; white-space: nowrap; }
+.start-notice .row { justify-content: center; margin-top: 20px; }

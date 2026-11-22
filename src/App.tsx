@@ -2,10 +2,10 @@ import { useState } from 'react';
 import { LESSONS, freePlayLesson } from './lessons/lessons';
 import { GoalStatus } from './lessons/session';
 import { Lesson } from './lessons/types';
-import { loadProgress, markCompleted, Progress, saveProgress } from './state/progress';
+import { loadNoticeAccepted, loadProgress, markCompleted, Progress, saveNoticeAccepted, saveProgress } from './state/progress';
 import { DrillScreen } from './ui/DrillScreen';
 import { PlayScreen } from './ui/PlayScreen';
-import { FreePlaySetup, FreePlaySummary, FreeSettings, FreeStats, LessonIntro, LessonMap, LessonSummary } from './ui/screens';
+import { FreePlaySetup, FreePlaySummary, FreeSettings, FreeStats, LessonIntro, LessonMap, LessonSummary, StartNotice } from './ui/screens';
 
 type Screen =
   | { name: 'map' }
@@ -18,6 +18,7 @@ type Screen =
 
 export function App() {
   const [progress, setProgress] = useState<Progress>(loadProgress);
+  const [noticeAccepted, setNoticeAccepted] = useState(loadNoticeAccepted);
   const [screen, setScreen] = useState<Screen>({ name: 'map' });
   const [attempt, setAttempt] = useState(0);
   const [freeSettings, setFreeSettings] = useState<FreeSettings | undefined>();
@@ -36,6 +37,17 @@ export function App() {
     setAttempt((a) => a + 1);
     setScreen({ name: 'play', lesson, attempt: attempt + 1 });
   };
+
+  if (!noticeAccepted) {
+    return (
+      <StartNotice
+        onAccept={() => {
+          saveNoticeAccepted();
+          setNoticeAccepted(true);
+        }}
+      />
+    );
+  }
 
   switch (screen.name) {
     case 'map':

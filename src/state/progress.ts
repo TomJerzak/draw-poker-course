@@ -28,3 +28,22 @@ export function saveProgress(p: Progress): void {
 export function markCompleted(p: Progress, id: string): Progress {
   return p.completed.includes(id) ? p : { completed: [...p.completed, id] };
 }
+
+const NOTICE_KEY = 'kurs-pokera-notice-v1';
+
+/** Czy użytkownik zaakceptował już komunikat startowy (cel edukacyjny, ostrzeżenie przed hazardem). */
+export function loadNoticeAccepted(): boolean {
+  try {
+    return localStorage.getItem(NOTICE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function saveNoticeAccepted(): void {
+  try {
+    localStorage.setItem(NOTICE_KEY, '1');
+  } catch {
+    /* ignorujemy – komunikat pojawi się przy następnym wejściu */
+  }
+}

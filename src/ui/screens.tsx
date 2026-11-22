@@ -428,3 +428,39 @@ export function FreePlaySummary({
     </div>
   );
 }
+
+/** Jednorazowy komunikat przed pierwszym uruchomieniem kursu. */
+export function StartNotice({ onAccept }: { onAccept: () => void }) {
+  return (
+    <div className="screen narrow start-notice">
+      <h1>Zanim zaczniesz</h1>
+      <p>
+        Ten kurs służy wyłącznie nauce zasad pokera. Nie gra się tu na pieniądze. Żetony w kursie nie mają żadnej
+        wartości.
+      </p>
+      <p>Poker traktowany jako gra strategiczna jest dobrym treningiem dla umysłu. Uczy:</p>
+      <ul>
+        <li>liczenia szans i oceny ryzyka,</li>
+        <li>podejmowania decyzji, gdy nie znasz wszystkich informacji,</li>
+        <li>panowania nad emocjami, także po przegranej,</li>
+        <li>koncentracji i obserwacji rywali.</li>
+      </ul>
+      <div className="goal notice-warning">
+        <p>
+          <strong>Pamiętaj:</strong> gra na pieniądze to hazard. Może prowadzić do uzależnienia i poważnych strat. Kurs
+          nie zachęca do gry na pieniądze.
+        </p>
+        <p>W Polsce hazard jest dozwolony tylko dla osób pełnoletnich.</p>
+        <p>
+          Jeśli hazard staje się problemem dla Ciebie lub bliskiej osoby, zadzwoń pod bezpłatny numer{' '}
+          <a href="tel:800199990">800 199 990</a> (Ogólnopolski Telefon Zaufania Uzależnienia).
+        </p>
+      </div>
+      <div className="row">
+        <button className="btn primary" onClick={onAccept}>
+          Rozumiem, zaczynam
+        </button>
+      </div>
+    </div>
+  );
+}
