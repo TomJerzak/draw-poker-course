@@ -24,7 +24,7 @@ export const LESSONS: Lesson[] = [
     revealAll: true,
     coach: 'full',
     goal: { type: 'finish' },
-    goalText: 'Obejrzyj jedno pełne rozdanie.',
+    goalText: 'Obejrzyj pełne rozdanie.',
     scripted: [
       {
         cards: ['KS KH 9C 6D 3H', '7S 7D QC 8H 4S'],
