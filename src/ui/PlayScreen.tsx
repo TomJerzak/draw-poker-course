@@ -412,7 +412,8 @@ export function PlayScreen({ lesson, seed, onFinish, onExit, onFreeEnd }: Props)
           const order = dealOrder(i, g.dealer, g.players.length);
           const action = lastAction(g, i);
           const drew = drawOf(visibleEvents, p.hand, i);
-          const isWinner = complete && autoDone && g.winners.includes(i);
+          // W quizie zwycięzca jest wyróżniony dopiero po odpowiedzi, żeby nie zdradzać wyniku.
+          const isWinner = complete && autoDone && !awaitingQuiz && g.winners.includes(i);
           return (
             <div
               key={p.id}
@@ -529,7 +530,7 @@ export function PlayScreen({ lesson, seed, onFinish, onExit, onFreeEnd }: Props)
 
         <div
           className={`seat me ${g.toAct === HUMAN ? 'active' : ''} ${me.folded ? 'folded' : ''} ${
-            complete && autoDone && g.winners.includes(HUMAN) ? 'winner' : ''
+            complete && autoDone && !awaitingQuiz && g.winners.includes(HUMAN) ? 'winner' : ''
           }`}
         >
           {/* Odrzucone karty odjeżdżają w stronę środka stołu, zanim wjadą nowe. */}

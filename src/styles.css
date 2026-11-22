@@ -485,3 +485,82 @@ body { background: radial-gradient(ellipse at top, #17291f 0%, #0a120d 70%) fixe
   .table.table-oval.opp-2 { grid-template-columns: repeat(2, 1fr); }
   .table.table-oval.opp-3, .table.table-oval.opp-4, .table.table-oval.opp-5 { grid-template-columns: repeat(3, 1fr); }
 }
+
+/* =====================================================================
+   Nowy wygląd – etap 4: spójny styl pozostałych ekranów
+   ===================================================================== */
+:root { --panel: rgba(18,28,21,.92); --panel-border: #3b4a33; --serif: Georgia, 'Times New Roman', serif; }
+
+/* Nagłówki w stylu kasyna */
+.screen h1, .screen h2, .panel-head h2, .rankings h3 { font-family: var(--serif); letter-spacing: .2px; }
+.screen h1 { color: var(--gold); text-shadow: 0 2px 10px rgba(224,184,79,.25); }
+.screen h2 { color: #f3efe2; }
+
+/* Przyciski: złoty główny, czerwony do pasa i zerowania, stonowany drugorzędny */
+.btn { font-weight: 600; border-radius: 12px; transition: transform .1s, box-shadow .15s, filter .15s; }
+.btn.primary {
+  background: linear-gradient(180deg, #f2cf64, #c99a2e); color: #2a1d05;
+  box-shadow: 0 3px 0 rgba(0,0,0,.35), 0 6px 14px rgba(0,0,0,.3);
+}
+.btn.primary:hover { filter: brightness(1.05); }
+.btn.danger { background: linear-gradient(180deg, #c95050, #8f2e2e); color: #fff; box-shadow: 0 3px 0 rgba(0,0,0,.35); }
+.btn.ghost { background: rgba(18,28,21,.6); border: 1px solid var(--panel-border); color: var(--text); }
+.btn.ghost:hover { border-color: var(--accent); }
+.btn:active:not(:disabled) { transform: translateY(2px); }
+.btn.link { color: var(--gold); }
+
+/* Ramki i panele */
+.goal, .coach, .log, .panel { background: var(--panel); border: 1px solid var(--panel-border); box-shadow: 0 8px 20px rgba(0,0,0,.3); }
+.goal, .coach { border-left: 4px solid var(--accent); border-radius: 14px; }
+.coach.ok { border-left-color: var(--pos); }
+.coach.bad { border-left-color: var(--neg); }
+.danger-box { border-left-color: var(--danger); }
+.log { border-radius: 14px; }
+.panel { border-radius: 16px; }
+.overlay { backdrop-filter: blur(2px); }
+
+/* Menu: lekcje jako kafelki */
+.lesson-list { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 10px; }
+.lesson {
+  background: linear-gradient(160deg, rgba(31,48,37,.95), rgba(16,26,19,.95)); border: 1px solid var(--panel-border);
+  border-radius: 16px; padding: 14px; height: 100%; box-shadow: 0 6px 14px rgba(0,0,0,.3);
+  transition: transform .12s, border-color .15s, box-shadow .15s;
+}
+.lesson:not(:disabled):hover { transform: translateY(-2px); border-color: var(--accent); box-shadow: 0 10px 20px rgba(0,0,0,.4); }
+.lesson .num {
+  width: 40px; height: 40px; font-size: 1.05em; color: #fff;
+  background: radial-gradient(circle at 35% 30%, rgba(255,255,255,.3), transparent 55%), #1d6b42;
+  border: 2px solid rgba(255,255,255,.7); box-shadow: 0 3px 8px rgba(0,0,0,.4);
+}
+.lesson.done { border-color: rgba(224,184,79,.55); }
+.lesson.done .num { background: radial-gradient(circle at 35% 30%, rgba(255,255,255,.45), transparent 55%), #c99a2e; color: #2a1d05; }
+.lesson.next { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 0 22px rgba(224,184,79,.35); }
+.lesson:disabled { opacity: .5; }
+.menu-bar { gap: 10px; }
+
+/* Ćwiczenie: karty na suknie jak na stole */
+.table.drill {
+  border: 0; border-radius: 28px; padding: 26px 16px;
+  background:
+    repeating-radial-gradient(circle at 50% 50%, rgba(255,255,255,.025) 0 2px, transparent 2px 6px),
+    radial-gradient(ellipse at 50% 40%, #2b8a57 0%, #1d6b42 50%, #134a2e 100%);
+  box-shadow: 0 0 0 10px #5b3418, 0 0 0 12px #3d2210, inset 0 0 50px rgba(0,0,0,.5), 0 18px 36px rgba(0,0,0,.5);
+  margin: 12px 8px;
+}
+.table.drill .center.muted { color: #e9f1ea; }
+
+/* Wolna gra: suwak i wybór poziomu */
+.field input[type=range], .field input[type=checkbox] { accent-color: var(--accent); }
+.field .row .btn.primary, .field .row .btn.ghost { min-width: 110px; }
+
+/* Słowniczek i ściąga */
+.glossary dt { color: var(--gold); font-family: var(--serif); }
+.panel-head { background: var(--panel); }
+
+@media (max-width: 760px) {
+  .lesson-list { grid-template-columns: 1fr; }
+  .table.drill { margin: 12px 6px; box-shadow: 0 0 0 7px #5b3418, 0 0 0 9px #3d2210, inset 0 0 40px rgba(0,0,0,.5); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lesson, .btn { transition: none; }
+}
