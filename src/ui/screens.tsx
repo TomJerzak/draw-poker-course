@@ -9,6 +9,11 @@ import { Glossary, RichText } from './RichText';
 import { splitTerms } from '../lessons/glossary';
 import { pluralPl } from '../engine/cards';
 
+/** Numer lekcji widoczny dla ucznia (od 1). */
+function lessonNo(l: Lesson): number {
+  return LESSONS.indexOf(l) + 1;
+}
+
 /** Krótki opis rodzaju i długości lekcji na liście w menu. */
 function lessonKind(l: Lesson): string {
   const hands = pluralPl(l.handCount, 'rozdanie', 'rozdania', 'rozdań');
@@ -38,7 +43,7 @@ export function LessonMap({
   const [confirmReset, setConfirmReset] = useState(false);
   const completedCount = LESSONS.filter((l) => done.has(l.id)).length;
   const next = LESSONS.find((l, i) => !done.has(l.id) && (i === 0 || done.has(LESSONS[i - 1].id)));
-  const nextNo = next ? LESSONS.indexOf(next) : -1;
+  const nextNo = next ? lessonNo(next) : -1;
   return (
     <div className="screen">
       <h1>♠ Kurs Pokera ♥</h1>
@@ -56,7 +61,7 @@ export function LessonMap({
 
       <div className="goal">
         {completedCount === 0 ? (
-          <>Zacznij od lekcji 0. Kolejne lekcje odblokowują się po zaliczeniu poprzednich.</>
+          <>Zacznij od lekcji 1. Kolejne lekcje odblokowują się po zaliczeniu poprzednich.</>
         ) : next ? (
           <>
             Ukończone lekcje: <strong>{completedCount} z {LESSONS.length}</strong>. Następna: lekcja {nextNo} – {next.title}.
@@ -88,14 +93,14 @@ export function LessonMap({
                 className={`lesson ${completed ? 'done' : ''} ${l === next ? 'next' : ''}`}
                 disabled={!unlocked}
                 onClick={() => onOpen(l)}
-                aria-label={`Lekcja ${i}: ${l.title}${completed ? ' (zaliczona)' : unlocked ? '' : ` (zablokowana – najpierw zalicz lekcję ${i - 1})`}`}
+                aria-label={`Lekcja ${i + 1}: ${l.title}${completed ? ' (zaliczona)' : unlocked ? '' : ` (zablokowana – najpierw zalicz lekcję ${i})`}`}
               >
-                <span className="num">{completed ? '✔' : unlocked ? i : '🔒'}</span>
+                <span className="num">{completed ? '✔' : unlocked ? i + 1 : '🔒'}</span>
                 <span>
                   <strong>{l.title}</strong>
                   <span className="muted">{l.teaches}</span>
                   <span className="muted small">{lessonKind(l)}</span>
-                  {!unlocked && <span className="muted small">Odblokuje się po zaliczeniu lekcji {i - 1}.</span>}
+                  {!unlocked && <span className="muted small">Odblokuje się po zaliczeniu lekcji {i}.</span>}
                 </span>
               </button>
             </li>
@@ -110,7 +115,7 @@ export function LessonMap({
       )}
       {confirmReset && (
         <div className="goal danger-box">
-          Na pewno wyzerować postęp? Wszystkie zaliczone lekcje ({completedCount}) zostaną usunięte i znowu będzie dostępna tylko lekcja 0. Tego nie da się cofnąć.
+          Na pewno wyzerować postęp? Wszystkie zaliczone lekcje ({completedCount}) zostaną usunięte i znowu będzie dostępna tylko lekcja 1. Tego nie da się cofnąć.
           <div className="row">
             <button className="btn ghost" onClick={() => setConfirmReset(false)}>Anuluj</button>
             <button
@@ -174,7 +179,7 @@ export function LessonIntro({
   onStart: () => void;
   onBack: () => void;
 }) {
-  const n = LESSONS.indexOf(lesson);
+  const n = lessonNo(lesson);
   const [panel, setPanel] = useState<'rankings' | 'glossary' | null>(null);
   const hasTerms = lesson.intro.some((p) => splitTerms(p).some((x) => typeof x !== 'string'));
   return (
@@ -230,9 +235,9 @@ export function LessonSummary({
   onFreePlay: () => void;
   completedCount: number;
 }) {
-  const n = LESSONS.indexOf(lesson);
-  const last = n === LESSONS.length - 1;
-  const next = LESSONS[n + 1];
+  const n = lessonNo(lesson);
+  const last = n === LESSONS.length;
+  const next = LESSONS[n];
   return (
     <div className="screen narrow">
       <p className="muted">
