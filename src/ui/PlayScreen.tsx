@@ -261,6 +261,9 @@ export function PlayScreen({ lesson, seed, onFinish, onExit, onFreeEnd }: Props)
   const myDrew = drawOf(visibleEvents, me.hand, HUMAN);
   const myHand = evaluateHand(me.hand);
   const closed = closedRoundBets(g.events);
+  // Ante na początku rozdania: żeton każdego gracza wjeżdża przed niego i zsuwa się do puli
+  // (po animacji element zostaje niewidoczny do końca rozdania).
+  const antes = visibleEvents.flatMap((e) => (e.type === 'ante' && e.amount > 0 ? [e] : []));
   const wonAmount = g.events.reduce((s, e) => (e.type === 'win' ? s + e.amount : s), 0);
   const showdownText = complete ? explainShowdown(g, names) : null;
 
@@ -541,6 +544,21 @@ export function PlayScreen({ lesson, seed, onFinish, onExit, onFreeEnd }: Props)
               </div>
             ) : null,
           )}
+
+        {/* Ante: każdy wpłaca do puli na początku rozdania. */}
+        {chips &&
+          !complete &&
+          antes.map((e) => (
+            <div
+              key={`ante-${session.handNo}-${e.player}`}
+              className={`bet-spot ante ${e.player === HUMAN ? 'from-bottom' : 'from-top'}`}
+              style={betSpotPosition(e.player, g.players.length - 1)}
+              aria-hidden
+            >
+              <ChipStack amount={e.amount} mixed max={8} perColumn={4} small />
+              <span className="bet-amount">{e.amount}</span>
+            </div>
+          ))}
 
         {/* Koniec rundy licytacji: żetony całej rundy na chwilę leżą na stole, a potem zsuwają się do puli. */}
         {chips &&

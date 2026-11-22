@@ -595,3 +595,11 @@ body { background: radial-gradient(ellipse at top, #17291f 0%, #0a120d 70%) fixe
 @media (prefers-reduced-motion: reduce) {
   .bet-spot.closing { display: none; }
 }
+
+/* Ante – żetony wjeżdżają przed graczy i zsuwają się do puli */
+.bet-spot.ante { pointer-events: none; }
+.bet-spot.ante.from-top { animation: bet-slide-top .35s ease-out, bet-to-pot .45s ease-in .45s both; }
+.bet-spot.ante.from-bottom { animation: bet-slide-bottom .35s ease-out, bet-to-pot .45s ease-in .45s both; }
+@media (prefers-reduced-motion: reduce) {
+  .bet-spot.ante { display: none; }
+}
