@@ -564,3 +564,4 @@ body { background: radial-gradient(ellipse at top, #17291f 0%, #0a120d 70%) fixe
 @media (prefers-reduced-motion: reduce) {
   .lesson, .btn { transition: none; }
 }
+.card.clickable:focus-visible { outline: 3px solid var(--gold); outline-offset: 3px; }

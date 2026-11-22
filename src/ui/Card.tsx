@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react';
+import type { CSSProperties, KeyboardEvent } from 'react';
 import { Card as CardT, rankLabel, SUIT_NAME_PL, SUIT_SYMBOL } from '../engine/cards';
 
 interface Props {
@@ -74,17 +74,26 @@ export function Card({ card, faceDown, selected, hinted, isNew, small, onClick, 
   if (isNew) cls.push('new');
   if (onClick) cls.push('clickable');
   const label = `${rankLabel(card.rank)} ${SUIT_NAME_PL[card.suit]}${isNew ? ' (nowa)' : ''}`;
-  const Tag = onClick ? 'button' : 'div';
+  // Zawsze ten sam element (div) – zmiana na <button> przy wymianie tworzyłaby kartę od nowa
+  // i ponownie uruchamiała animację rozdawania. Gdy kartę można kliknąć, działa jak przycisk.
+  const clickable = onClick
+    ? {
+        role: 'button',
+        tabIndex: 0,
+        'aria-pressed': !!selected,
+        onClick,
+        onKeyDown: (e: KeyboardEvent<HTMLDivElement>) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onClick();
+          }
+        },
+      }
+    : {};
   return (
-    <Tag
-      className={cls.join(' ')}
-      style={st}
-      onClick={onClick}
-      aria-label={label}
-      aria-pressed={onClick ? !!selected : undefined}
-    >
+    <div className={cls.join(' ')} style={st} aria-label={label} {...clickable}>
       <Face card={card} />
       {isNew && <span className="new-badge">nowa</span>}
-    </Tag>
+    </div>
   );
 }
