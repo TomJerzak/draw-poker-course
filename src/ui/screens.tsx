@@ -52,9 +52,6 @@ export function LessonMap({
       </p>
 
       <div className="row menu-bar">
-        <button className={`btn ${next ? 'ghost' : 'primary'}`} onClick={onFreePlay}>
-          Wolna gra z botami{next ? ' (najlepiej po kursie)' : ''}
-        </button>
         <button className="btn ghost" onClick={() => setRankings(true)}>Układy</button>
         <button className="btn ghost" onClick={() => setGlossary(true)}>Słowniczek</button>
       </div>
@@ -107,6 +104,12 @@ export function LessonMap({
           );
         })}
       </ol>
+
+      <div className="row">
+        <button className={`btn ${next ? 'ghost' : 'primary'}`} onClick={onFreePlay}>
+          Wolna gra z botami{next ? ' (najlepiej po kursie)' : ''}
+        </button>
+      </div>
 
       {completedCount > 0 && !confirmReset && (
         <div className="row">
