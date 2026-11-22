@@ -1,0 +1,507 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ActionType, betSize, GameState, legalActions, pot, toCall } from '../engine/game';
+import { evaluateHand } from '../engine/handEvaluator';
+import { coachAdvice, DEMO_OUTRO, explainEvent, explainShowdown, narrate } from '../lessons/coach';
+import {
+  act,
+  botStep,
+  createSession,
+  evaluateGoal,
+  finishHand,
+  GoalStatus,
+  HUMAN,
+  lessonOver,
+  nextHand,
+  Session,
+} from '../lessons/session';
+import { Lesson } from '../lessons/types';
+import { pluralPl } from '../engine/cards';
+import { FreeStats, LEVEL_PL } from './screens';
+import { Card } from './Card';
+import { HandRankings } from './HandRankings';
+import { Glossary, RichText } from './RichText';
+
+interface Props {
+  lesson: Lesson;
+  seed?: number;
+  onFinish: (status: GoalStatus, session: Session) => void;
+  onExit: () => void;
+  /** Wolna gra: wyjście z gry albo utrata żetonów prowadzi do podsumowania. */
+  onFreeEnd?: (stats: FreeStats) => void;
+}
+
+const BOT_DELAY = 750;
+
+function revealedSeats(g: GameState, revealAll: boolean): Set<number> {
+  if (revealAll) return new Set(g.players.map((_, i) => i));
+  const sd = g.events.find((e) => e.type === 'showdown');
+  return new Set(sd && sd.type === 'showdown' ? sd.players : []);
+}
+
+function lastActionLabel(g: GameState, player: number): string | null {
+  for (let i = g.events.length - 1; i >= 0; i--) {
+    const e = g.events[i];
+    if (e.type === 'phase' && e.phase !== 'complete' && e.phase !== 'showdown') break;
+    if (e.type === 'action' && e.player === player) {
+      const labels: Record<string, string> = { fold: 'Pas', check: 'Czeka', call: 'Sprawdza', bet: 'Stawia', raise: 'Podbija' };
+      return labels[e.action.type] ?? null;
+    }
+    if (e.type === 'drawn' && e.player === player) {
+      return e.discarded.length === 0 ? 'Stoi' : `Wymienia ${e.discarded.length}`;
+    }
+  }
+  return null;
+}
+
+/** Indeks następnego zdarzenia (od `from`), które ma objaśnienie dla początkujących, albo -1. */
+function nextExplained(s: Session, from: number): number {
+  const names = s.game.players.map((p) => p.name);
+  for (let i = from; i < s.game.events.length; i++) {
+    if (explainEvent(s.game.events[i], names, s.game)) return i;
+  }
+  return -1;
+}
+
+function DealerBadge() {
+  return (
+    <span className="term dealer-term" tabIndex={0}>
+      <span className="dealer">D</span>
+      <span className="tip" role="tooltip">
+        <strong>Rozdający (dealer button):</strong> w każdym rozdaniu ktoś inny. Licytację zaczyna gracz po jego lewej stronie, a rozdający decyduje ostatni.
+      </span>
+    </span>
+  );
+}
+
+export function PlayScreen({ lesson, seed, onFinish, onExit, onFreeEnd }: Props) {
+  const [session, setSession] = useState<Session>(() => createSession(lesson, seed));
+  const [selected, setSelected] = useState<number[]>([]);
+  const [quizPick, setQuizPick] = useState<number | 'tie' | null>(null);
+  const [panel, setPanel] = useState<'rankings' | 'glossary' | null>(null);
+  // Pokazowe rozdanie: ile zdarzeń już objaśniono i jaki tekst pokazuje trener.
+  const [shown, setShown] = useState(() => {
+    const i = lesson.autoplay ? nextExplained(session, 0) : -1;
+    return i >= 0 ? i + 1 : 0;
+  });
+  const [autoText, setAutoText] = useState<string | null>(() => {
+    if (!lesson.autoplay) return null;
+    const i = nextExplained(session, 0);
+    return i >= 0 ? explainEvent(session.game.events[i], session.game.players.map((p) => p.name), session.game) : null;
+  });
+  const [humanExplained, setHumanExplained] = useState(false);
+  const [confirmExit, setConfirmExit] = useState(false);
+  const [maxNote, setMaxNote] = useState(false);
+  const logRef = useRef<HTMLDivElement>(null);
+
+  const g = session.game;
+  const names = g.players.map((p) => p.name);
+  const free = lesson.handCount === Infinity;
+  const auto = !!lesson.autoplay;
+  const script = lesson.scripted?.[session.handNo];
+  const complete = g.phase === 'complete';
+  const autoDone = !auto || (complete && nextExplained(session, shown) < 0);
+  const awaitingQuiz = complete && lesson.quiz && quizPick === null;
+  const chips = lesson.rules.ante > 0 || lesson.rules.betting;
+  const endFree = () => {
+    const done = complete ? session.results.length + 1 : session.results.length;
+    const wins = session.results.filter((r) => r.humanWon).length + (complete && g.winners.includes(HUMAN) ? 1 : 0);
+    // Przerwane rozdanie nie jest liczone – żetony z puli wracają do bilansu sprzed rozdania.
+    const finalStack = complete ? me.stack : me.stack + me.contributed;
+    onFreeEnd?.({
+      hands: done,
+      wins,
+      balance: finalStack - lesson.startingStack,
+      finalStack,
+      busted: finalStack <= 0,
+      abandoned: !complete && g.events.some((e) => (e.type === 'action' || e.type === 'drawn') && e.player === HUMAN),
+    });
+  };
+  const freeSubtitle = free
+    ? `${pluralPl(lesson.opponents.length, 'rywal', 'rywali', 'rywali')} · poziom ${LEVEL_PL[lesson.opponents[0].level].toLowerCase()} · ${lesson.coach === 'off' ? 'bez podpowiedzi' : 'z podpowiedziami'}`
+    : '';
+
+  // Ruchy botów z opóźnieniem, żeby uczeń widział, co się dzieje.
+  useEffect(() => {
+    if (auto || g.toAct === null || g.toAct === HUMAN) return;
+    const t = setTimeout(() => setSession(botStep(session)), BOT_DELAY);
+    return () => clearTimeout(t);
+  }, [session, g.toAct, auto]);
+
+  useEffect(() => {
+    logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
+  }, [g.events.length, shown]);
+
+  const advice = useMemo(
+    () => (auto ? null : coachAdvice(g, HUMAN, lesson.coach, lesson.coachOdds)),
+    [g, lesson.coach, lesson.coachOdds, auto],
+  );
+  const acts = auto ? [] : legalActions(g, HUMAN);
+  const me = g.players[HUMAN];
+  const revealed = revealedSeats(g, !!lesson.revealAll);
+  const visibleEvents = auto ? g.events.slice(0, shown) : g.events;
+  const log = visibleEvents
+    .flatMap((e) => {
+      const line = narrate(e, names);
+      // Po wymianie ucznia: jaki układ ma teraz i czy wymiana go poprawiła.
+      if (e.type === 'drawn' && e.player === HUMAN && e.discarded.length > 0) {
+        const dealt = g.events.find((d) => d.type === 'deal' && d.player === HUMAN);
+        const before = dealt && dealt.type === 'deal' ? evaluateHand(dealt.cards).category : 0;
+        const now = evaluateHand(g.players[HUMAN].hand);
+        return [line, `Teraz masz: ${now.name}${now.category > before ? ' – wymiana poprawiła układ!' : '.'}`];
+      }
+      return [line];
+    })
+    .filter((x): x is string => !!x);
+  if (session.rebuys.length) {
+    const many = session.rebuys.length > 1;
+    log.unshift(
+      `${session.rebuys.join(' i ')} ${many ? 'nie mają' : 'nie ma'} już żetonów i ${many ? 'dostają' : 'dostaje'} nowe (${lesson.startingStack}).`,
+    );
+  }
+  const myDraw = visibleEvents.find((e) => e.type === 'drawn' && e.player === HUMAN);
+  const newCodes = new Set(myDraw && myDraw.type === 'drawn' ? myDraw.received.map((c) => c.rank + c.suit) : []);
+  const myHand = evaluateHand(me.hand);
+  const wonAmount = g.events.reduce((s, e) => (e.type === 'win' ? s + e.amount : s), 0);
+  const showdownText = complete ? explainShowdown(g, names) : null;
+
+  /** Krok pokazowego rozdania. */
+  const autoStep = () => {
+    const i = nextExplained(session, shown);
+    if (i >= 0) {
+      setShown(i + 1);
+      const ev = g.events[i];
+      let text = explainEvent(ev, names, g);
+      if (ev.type === 'win') text = [text, showdownText, DEMO_OUTRO].filter(Boolean).join(' ');
+      setAutoText(text);
+      return;
+    }
+    if (g.toAct === null) return;
+    let next: Session;
+    if (g.toAct === HUMAN) {
+      const adv = coachAdvice(g, HUMAN, 'full');
+      if (!adv) return;
+      if (!humanExplained) {
+        setHumanExplained(true);
+        setAutoText(`Twoja kolej. W tym rozdaniu trener gra za Ciebie i tłumaczy swój ruch: ${adv.text}`);
+        return;
+      }
+      setHumanExplained(false);
+      next = act(
+        session,
+        adv.suggested === 'draw' ? { type: 'draw', discard: adv.discard ?? [] } : ({ type: adv.suggested } as never),
+      );
+    } else {
+      next = botStep(session);
+    }
+    setSession(next);
+    const j = nextExplained(next, shown);
+    if (j >= 0) {
+      setShown(j + 1);
+      const ev = next.game.events[j];
+      let text = explainEvent(ev, names, next.game);
+      const sd = next.game.phase === 'complete' ? explainShowdown(next.game, names) : null;
+      if (ev.type === 'win') text = [text, sd, DEMO_OUTRO].filter(Boolean).join(' ');
+      setAutoText(text);
+    }
+  };
+
+  const doAction = (type: ActionType) => {
+    if (type === 'draw') {
+      setSession(act(session, { type: 'draw', discard: selected }));
+      setSelected([]);
+      setMaxNote(false);
+    } else setSession(act(session, { type } as never));
+  };
+
+  const toggle = (i: number) => {
+    if (!acts.includes('draw')) return;
+    if (selected.includes(i)) {
+      setSelected(selected.filter((x) => x !== i));
+      setMaxNote(false);
+    } else if (selected.length < g.rules.maxDraw) {
+      setSelected([...selected, i]);
+    } else {
+      setMaxNote(true);
+    }
+  };
+
+  const continueGame = () => {
+    const done = finishHand(session, lesson.quiz ? (quizPick ?? undefined) : undefined);
+    setQuizPick(null);
+    setSelected([]);
+    if (lessonOver(done)) {
+      onFinish(evaluateGoal(done), done);
+      return;
+    }
+    setSession(nextHand(done));
+  };
+
+  const quizCorrect =
+    quizPick === null
+      ? null
+      : quizPick === 'tie'
+        ? g.winners.length > 1
+        : g.winners.length === 1 && g.winners[0] === quizPick;
+
+  const owe = acts.length ? toCall(g, HUMAN) : 0;
+  const label = (t: ActionType): string => {
+    switch (t) {
+      case 'check': return 'Czekaj (check)';
+      case 'bet': return `Postaw ${betSize(g)} (bet)`;
+      case 'call': return `Sprawdź – dopłać ${owe} (call)`;
+      case 'raise': return `Podbij – dopłać ${owe + betSize(g)} (raise)`;
+      case 'fold': return 'Pasuj (fold)';
+      case 'draw': return selected.length ? `Wymień ${pluralPl(selected.length, 'kartę', 'karty', 'kart')}` : 'Stój (nie wymieniaj)';
+    }
+  };
+
+  // W pokazowym rozdaniu gra jest o krok przed objaśnieniami trenera – pokazujemy fazę z ostatniego objaśnionego zdarzenia.
+  let shownPhase: GameState['phase'] | 'ante' = g.phase;
+  if (auto) {
+    const lastPhase = [...g.events.slice(0, shown)].reverse().find((e) => e.type === 'phase');
+    shownPhase = lastPhase && lastPhase.type === 'phase' ? lastPhase.phase : 'ante';
+    if (shownPhase === 'complete' && !autoDone) shownPhase = 'showdown';
+  }
+  const phaseLabel = {
+    ante: 'Wpłata ante',
+    bet1: 'Licytacja przed wymianą',
+    draw: 'Wymiana kart',
+    bet2: 'Licytacja po wymianie',
+    showdown: 'Odkrycie kart',
+    complete: awaitingQuiz ? 'Kto wygrywa?' : 'Koniec rozdania',
+  }[shownPhase];
+
+  // Bilans zmienia się dopiero po zakończeniu rozdania – w trakcie pokazujemy stan sprzed rozdania,
+  // żeby żetony wpłacone do puli nie wyglądały na już przegrane.
+  const stackDiff = (complete ? me.stack : me.stack + me.contributed) - lesson.startingStack;
+  const myWin = g.events.reduce((sum, e) => (e.type === 'win' && e.player === HUMAN ? sum + e.amount : sum), 0);
+  const steps: string[] = [];
+  if (lesson.rules.ante > 0) steps.push('Ante');
+  if (lesson.rules.betting) steps.push('Licytacja');
+  if (lesson.rules.draw) steps.push('Wymiana');
+  if (lesson.rules.betting && lesson.rules.draw) steps.push('Licytacja');
+  steps.push('Odkrycie kart');
+  const stepIndex: Record<string, number> = {};
+  {
+    let k = lesson.rules.ante > 0 ? 1 : 0;
+    if (lesson.rules.betting) stepIndex.bet1 = k++;
+    if (lesson.rules.draw) stepIndex.draw = k++;
+    if (lesson.rules.betting && lesson.rules.draw) stepIndex.bet2 = k++;
+    stepIndex.showdown = stepIndex.complete = k;
+  }
+  const currentStep = shownPhase === 'ante' ? 0 : (stepIndex[shownPhase] ?? 0);
+  // Notka lekcji jest widoczna, dopóki uczeń nie wykona pierwszego ruchu w rozdaniu.
+  const humanMoved = g.events.some((e) => (e.type === 'action' || e.type === 'drawn') && e.player === HUMAN);
+  let coachText: string | null | undefined;
+  if (auto) coachText = autoText;
+  else if (complete) {
+    if (awaitingQuiz) coachText = 'Kto wygrywa to rozdanie? Porównaj układy i wybierz odpowiedź. Nazwy układów pokażemy po odpowiedzi.';
+    else {
+      const answer =
+        g.winners.length > 1 ? 'to remis' : g.winners[0] === HUMAN ? 'wygrywasz Ty' : `wygrywa ${names[g.winners[0]]}`;
+      const verdict = quizCorrect === null ? '' : quizCorrect ? 'Dobrze! ' : `Niestety nie – ${answer}. `;
+      const uncontested = g.events.some((e) => e.type === 'win' && e.uncontested);
+      const foldText = !uncontested
+        ? ''
+        : g.winners.includes(HUMAN)
+          ? 'Wszyscy pozostali gracze spasowali – pula jest Twoja bez odkrywania kart.'
+          : me.folded
+            ? `Po Twoim pasie ${names[g.winners[0]]} zabiera pulę bez odkrywania kart. Żetony wpłacone przez Ciebie do puli przepadają.`
+            : `${names[g.winners[0]]} zabiera pulę, bo pozostali gracze spasowali.`;
+      const reachedShowdown = g.events.some((e) => e.type === 'showdown');
+      const afterFits = (script?.afterRequires ?? []).every((r) =>
+        r === 'showdown' ? reachedShowdown : g.winners.includes(HUMAN),
+      );
+      coachText = [verdict + (showdownText ?? foldText), afterFits ? script?.after : undefined].filter(Boolean).join(' ');
+    }
+  } else {
+    coachText = [!humanMoved ? script?.before : undefined, g.toAct === HUMAN ? advice?.text : undefined]
+      .filter(Boolean)
+      .join(' ');
+  }
+
+  return (
+    <div className="play">
+      <header className="topbar">
+        <button className="btn ghost" onClick={() => setConfirmExit(true)}>{free ? '← Zakończ grę' : '← Menu'}</button>
+        <div className="title">
+          <strong>{lesson.title}</strong>
+          <span className="muted">
+            {free ? `Rozdanie ${session.handNo + 1} · ${freeSubtitle}` : `Rozdanie ${session.handNo + 1}/${lesson.handCount}`}
+            {lesson.goalText && ` · Cel: ${lesson.goalText}`}
+          </span>
+        </div>
+        {lesson.showRankings && (
+          <button className="btn ghost" onClick={() => setPanel('rankings')}>Układy</button>
+        )}
+        <button className="btn ghost" onClick={() => setPanel('glossary')}>Słowniczek</button>
+      </header>
+      {confirmExit && (
+        <div className="goal danger-box">
+          {free
+            ? `Zakończyć grę? Zobaczysz podsumowanie, ale tej gry nie da się wznowić.${complete ? '' : ' Bieżące rozdanie nie zostanie policzone.'}`
+            : 'Przerwać lekcję? Ta próba przepadnie i przy następnym podejściu zaczniesz od początku. Zaliczone wcześniej lekcje zostają.'}
+          <div className="row">
+            <button className="btn primary" onClick={() => setConfirmExit(false)}>Graj dalej</button>
+            <button className="btn danger" onClick={free ? endFree : onExit}>{free ? 'Zakończ grę' : 'Przerwij lekcję'}</button>
+          </div>
+        </div>
+      )}
+
+      <section className="table">
+        <div className="opponents">
+          {g.players.map((p, i) =>
+            i === HUMAN ? null : (
+              <div key={p.id} className={`seat ${g.toAct === i ? 'active' : ''} ${p.folded ? 'folded' : ''}`}>
+                <div className="seat-head">
+                  <span className="name">{p.name}</span>
+                  {g.dealer === i && <DealerBadge />}
+                </div>
+                <div className="cards-row">
+                  {p.hand.map((c, k) => (
+                    <Card key={k} card={c} faceDown={!revealed.has(i)} small />
+                  ))}
+                </div>
+                <div className="seat-info">
+                  {chips && <span>💰 {p.stack}</span>}
+                  {p.betThisRound > 0 && !complete && <span className="bet">w tej rundzie: {p.betThisRound}</span>}
+                  <span className="status">{lastActionLabel(g, i)}</span>
+                </div>
+                {revealed.has(i) && !awaitingQuiz && (
+                  <div className={`hand-name ${complete && autoDone && g.winners.includes(i) ? 'win' : ''}`}>
+                    {(p.handValue ?? evaluateHand(p.hand)).name}
+                  </div>
+                )}
+              </div>
+            ),
+          )}
+        </div>
+
+        <div className="center">
+          {chips && <div className="pot">Pula: {complete ? wonAmount : pot(g)}</div>}
+          <div className="phase">{phaseLabel}</div>
+          {steps.length >= 3 && (
+            <ol className="steps" aria-label="Etapy rozdania">
+              {steps.map((st, k) => (
+                <li key={k} className={k === currentStep ? 'current' : k < currentStep ? 'past' : ''}>
+                  {st}
+                </li>
+              ))}
+            </ol>
+          )}
+        </div>
+
+        <div className={`seat me ${g.toAct === HUMAN ? 'active' : ''} ${me.folded ? 'folded' : ''}`}>
+          <div className="seat-head">
+            <span className="name">Ty</span>
+            {g.dealer === HUMAN && <DealerBadge />}
+            {chips && (
+              <span>
+                💰 {me.stack}{' '}
+                <span className={stackDiff >= 0 ? 'pos' : 'neg'}>
+                  (bilans {stackDiff > 0 ? '+' : stackDiff < 0 ? '−' : ''}
+                  {Math.abs(stackDiff)})
+                </span>
+                {me.betThisRound > 0 && !complete && <span className="bet"> · w tej rundzie: {me.betThisRound}</span>}
+              </span>
+            )}
+          </div>
+          <div className="cards-row big">
+            {me.hand.map((c, i) => (
+              <Card
+                key={i}
+                card={c}
+                selected={selected.includes(i)}
+                hinted={acts.includes('draw') && !!advice?.discard?.includes(i)}
+                isNew={newCodes.has(c.rank + c.suit)}
+                onClick={acts.includes('draw') ? () => toggle(i) : undefined}
+              />
+            ))}
+          </div>
+          {!awaitingQuiz && (
+            <div className={`hand-name ${complete && autoDone && g.winners.includes(HUMAN) ? 'win' : ''}`}>{myHand.name}</div>
+          )}
+        </div>
+      </section>
+
+      {coachText && (
+        <div className={`coach ${quizCorrect === true ? 'ok' : quizCorrect === false ? 'bad' : ''}`}>
+          <span className="coach-icon" aria-hidden>🎓</span>
+          <p><RichText text={coachText} /></p>
+        </div>
+      )}
+
+      <section className="actions">
+        {auto && !autoDone && (
+          <button className="btn primary" onClick={autoStep}>Dalej →</button>
+        )}
+
+        {acts.includes('draw') && (
+          <p className="hint">
+            {maxNote
+              ? `Możesz wymienić najwyżej ${pluralPl(g.rules.maxDraw, 'kartę', 'karty', 'kart')} – odznacz którąś, żeby wybrać inną.`
+              : `Kliknij karty do wymiany (najwyżej ${g.rules.maxDraw}). Kliknij ponownie, żeby odznaczyć.`}
+            {advice?.discard && (
+              <button className="btn link" onClick={() => setSelected(advice.discard!)}>
+                Zaznacz sugerowane
+              </button>
+            )}
+          </p>
+        )}
+        {acts.map((t) => (
+          <button
+            key={t}
+            className={`btn ${t === 'fold' ? 'danger' : 'primary'} ${advice?.suggested === t ? 'suggested' : ''}`}
+            onClick={() => doAction(t)}
+          >
+            {label(t)}
+          </button>
+        ))}
+
+        {awaitingQuiz && (
+          <>
+            <button className="btn primary" onClick={() => setQuizPick(HUMAN)}>Ty</button>
+            {g.players.slice(1).map((p, i) => (
+              <button key={p.id} className="btn primary" onClick={() => setQuizPick(i + 1)}>{p.name}</button>
+            ))}
+            <button className="btn primary" onClick={() => setQuizPick('tie')}>Remis</button>
+          </>
+        )}
+
+        {complete && autoDone && !awaitingQuiz && (
+          <div className="result">
+            <span>
+              {g.winners.length > 1
+                ? `Remis: ${g.winners.map((w) => names[w]).join(' i ')} ${g.winners.includes(HUMAN) ? 'dzielicie' : 'dzielą'} pulę.`
+                : g.winners.includes(HUMAN)
+                  ? chips && myWin > 0
+                    ? `Wygrywasz ${pluralPl(myWin, 'żeton', 'żetony', 'żetonów')}!`
+                    : 'Wygrywasz to rozdanie!'
+                  : `Wygrywa ${names[g.winners[0]]}.`}
+            </span>
+            {free && me.stack <= 0 ? (
+              <button className="btn primary" onClick={endFree}>Skończyły Ci się żetony – zobacz podsumowanie</button>
+            ) : (
+              <button className="btn primary" onClick={continueGame}>
+                {!free && session.results.length + 1 >= lesson.handCount ? 'Zakończ lekcję' : 'Następne rozdanie →'}
+              </button>
+            )}
+          </div>
+        )}
+        {!auto && !complete && g.toAct !== HUMAN && <p className="muted">Teraz ruch: {names[g.toAct ?? 0]}…</p>}
+      </section>
+
+      <details className="log" open>
+        <summary>Przebieg rozdania</summary>
+        <div ref={logRef} className="log-body">
+          {(awaitingQuiz ? log.filter((l) => !/^Wygryw/.test(l) && !/ wygrywa /.test(l)) : log).map((l, i) => (
+            <div key={i}>{l}</div>
+          ))}
+        </div>
+      </details>
+
+      {panel === 'rankings' && <HandRankings onClose={() => setPanel(null)} />}
+      {panel === 'glossary' && <Glossary onClose={() => setPanel(null)} />}
+    </div>
+  );
+}
