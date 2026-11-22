@@ -565,3 +565,11 @@ body { background: radial-gradient(ellipse at top, #17291f 0%, #0a120d 70%) fixe
   .lesson, .btn { transition: none; }
 }
 .card.clickable:focus-visible { outline: 3px solid var(--gold); outline-offset: 3px; }
+
+/* Nazwa układu: rodzaj układu wyróżniony, szczegół mniejszą czcionką pod spodem */
+.table-oval .hand-name { display: flex; flex-direction: column; align-items: center; line-height: 1.15; gap: 1px; }
+.hand-name .hn-kind { font-weight: 800; font-size: 1.05em; color: #f3efe2; }
+.hand-name .hn-detail { font-size: .82em; }
+.table-oval .hand-name.win { display: inline-flex; white-space: nowrap; padding: 4px 14px; }
+.table-oval .hand-name.win .hn-kind { color: #2a1d05; font-size: 1.12em; }
+.me-info .hand-name { align-items: flex-start; }

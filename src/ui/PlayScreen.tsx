@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { ActionType, betSize, GameState, legalActions, pot, toCall } from '../engine/game';
-import { evaluateHand } from '../engine/handEvaluator';
+import { CATEGORY_NAME_PL, evaluateHand, type HandValue } from '../engine/handEvaluator';
 import { coachAdvice, DEMO_OUTRO, explainEvent, explainShowdown, narrate } from '../lessons/coach';
 import {
   act,
@@ -112,6 +112,24 @@ function dealerPuckPosition(dealer: number, opponents: number): CSSProperties {
   if (dealer === HUMAN) return { left: 'calc(50% + 150px)', top: 'calc(100% - 30px)' };
   const p = seatPosition(dealer - 1, opponents);
   return { left: `calc(${p.x}% + 40px)`, top: `calc(${p.y}% + 22px)` };
+}
+
+/**
+ * Nazwa układu w dwóch częściach: rodzaj układu (wyróżniony) i szczegół,
+ * np. „Dwie pary” + „króli i waletów”. Tekst jest ten sam co w pełnej nazwie.
+ */
+function HandLabel({ value }: { value: HandValue }) {
+  const kind = CATEGORY_NAME_PL[value.category];
+  const detail = (value.name.startsWith(kind) ? value.name.slice(kind.length) : '')
+    .replace(/^[\s:]+/, '')
+    .replace(/^\((.*)\)$/, '$1')
+    .trim();
+  return (
+    <>
+      <span className="hn-kind">{kind}</span>
+      {detail && <span className="hn-detail">{detail}</span>}
+    </>
+  );
 }
 
 function DealerBadge() {
@@ -471,7 +489,7 @@ export function PlayScreen({ lesson, seed, onFinish, onExit, onFreeEnd }: Props)
               </div>
               {revealed.has(i) && !awaitingQuiz && (
                 <div className={`hand-name ${isWinner ? 'win' : ''}`}>
-                  {(p.handValue ?? evaluateHand(p.hand)).name}
+                  <HandLabel value={p.handValue ?? evaluateHand(p.hand)} />
                 </div>
               )}
             </div>
@@ -586,7 +604,9 @@ export function PlayScreen({ lesson, seed, onFinish, onExit, onFreeEnd }: Props)
                 )}
               </div>
               {!awaitingQuiz && (
-                <div className={`hand-name ${complete && autoDone && g.winners.includes(HUMAN) ? 'win' : ''}`}>{myHand.name}</div>
+                <div className={`hand-name ${complete && autoDone && g.winners.includes(HUMAN) ? 'win' : ''}`}>
+                  <HandLabel value={myHand} />
+                </div>
               )}
             </div>
           </div>
