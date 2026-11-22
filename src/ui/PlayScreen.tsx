@@ -114,6 +114,18 @@ function dealerPuckPosition(dealer: number, opponents: number): CSSProperties {
   return { left: `calc(${p.x}% + 40px)`, top: `calc(${p.y}% + 22px)` };
 }
 
+/** Czas animacji ante (wjazd i zsunięcie do puli) – zgodny ze styles.css. */
+const ANTE_ANIM_MS = 900;
+
+/** Czy żetony zakładów i ante są animowane na stole (szeroki ekran, bez ograniczenia ruchu). */
+function tableChipsAnimate(): boolean {
+  try {
+    return !window.matchMedia('(max-width: 760px)').matches && !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Zakłady z rundy licytacji, która właśnie się zakończyła (np. ostatnim sprawdzeniem rywala).
  * Silnik od razu przenosi je do puli, więc odtwarzamy je z zapisu akcji, żeby pokazać,
@@ -200,6 +212,22 @@ export function PlayScreen({ lesson, seed, onFinish, onExit, onFreeEnd }: Props)
   const autoDone = !auto || (complete && nextExplained(session, shown) < 0);
   const awaitingQuiz = complete && lesson.quiz && quizPick === null;
   const chips = lesson.rules.ante > 0 || lesson.rules.betting;
+  // Ante doliczamy do wyświetlanej puli dopiero, gdy jego żetony dojadą na środek stołu.
+  const anteTotal = (auto ? g.events.slice(0, shown) : g.events).reduce((s, e) => (e.type === 'ante' ? s + e.amount : s), 0);
+  const [anteLanded, setAnteLanded] = useState(-1);
+  useEffect(() => {
+    if (anteTotal <= 0) return;
+    const t = setTimeout(() => setAnteLanded(session.handNo), ANTE_ANIM_MS);
+    return () => clearTimeout(t);
+  }, [session.handNo, anteTotal > 0]);
+  const anteInFlight =
+    chips &&
+    anteTotal > 0 &&
+    anteLanded !== session.handNo &&
+    !complete &&
+    !g.events.some((e) => e.type === 'action' || e.type === 'drawn') &&
+    tableChipsAnimate();
+  const shownPot = pot(g) - (anteInFlight ? anteTotal : 0);
   const endFree = () => {
     const done = complete ? session.results.length + 1 : session.results.length;
     const wins = session.results.filter((r) => r.humanWon).length + (complete && g.winners.includes(HUMAN) ? 1 : 0);
@@ -594,10 +622,10 @@ export function PlayScreen({ lesson, seed, onFinish, onExit, onFreeEnd }: Props)
         </div>
 
         <div className="center">
-          {chips && !complete && pot(g) > 0 && (
-            <ChipStack key={`pot-${session.handNo}-${pot(g)}`} amount={pot(g)} mixed max={16} perColumn={4} className="pot-chips" />
+          {chips && !complete && shownPot > 0 && (
+            <ChipStack key={`pot-${session.handNo}-${shownPot}`} amount={shownPot} mixed max={16} perColumn={4} className="pot-chips" />
           )}
-          {chips && <div className="pot">Pula: {complete ? wonAmount : pot(g)}</div>}
+          {chips && <div className="pot">Pula: {complete ? wonAmount : shownPot}</div>}
           <div className="phase">{phaseLabel}</div>
           {steps.length >= 3 && (
             <ol className="steps" aria-label="Etapy rozdania">
