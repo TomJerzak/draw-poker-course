@@ -404,3 +404,84 @@ body { background: radial-gradient(ellipse at top, #17291f 0%, #0a120d 70%) fixe
     position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
   }
 }
+
+/* =====================================================================
+   Nowy wygląd – etap 3: przebieg gry (dymki, przyciski, zwycięzca, wymiana)
+   ===================================================================== */
+
+/* Dymek z ostatnim ruchem rywala – „wyskakuje” przy każdym nowym ruchu */
+.action-bubble {
+  position: absolute; left: 50%; top: -30px; transform: translateX(-50%); z-index: 3; white-space: nowrap;
+  background: #fffaf0; color: #1d1d1d; font-weight: 700; font-size: .78em; padding: 3px 10px; border-radius: 12px;
+  box-shadow: 0 3px 8px rgba(0,0,0,.45); animation: bubble-pop .35s cubic-bezier(.2,1.4,.4,1);
+}
+.action-bubble::after {
+  content: ''; position: absolute; left: 50%; bottom: -5px; transform: translateX(-50%);
+  border: 6px solid transparent; border-top-color: #fffaf0; border-bottom: 0;
+}
+@keyframes bubble-pop { from { scale: .4; opacity: 0; } to { scale: 1; opacity: 1; } }
+
+/* Zwycięzca rozdania */
+.seat.winner .avatar, .seat.me.winner .me-bar { animation: winner-glow 1.2s ease-in-out 3; box-shadow: 0 0 0 3px var(--gold), 0 0 22px rgba(242,210,122,.9); }
+@keyframes winner-glow {
+  0%, 100% { box-shadow: 0 0 0 3px var(--gold), 0 0 24px rgba(242,210,122,.95); }
+  50% { box-shadow: 0 0 0 3px var(--gold), 0 0 6px rgba(242,210,122,.4); }
+}
+.table-oval .hand-name.win {
+  display: inline-block; background: linear-gradient(180deg, #f2d27a, #c99a2e); color: #2a1d05;
+  padding: 1px 10px; border-radius: 10px; box-shadow: 0 2px 6px rgba(0,0,0,.4);
+}
+
+/* Odrzucone karty odjeżdżają w stronę środka stołu, potem wjeżdżają nowe */
+.seat.me { --hw: 76px; }
+.discard-layer {
+  position: absolute; left: 50%; top: 14px; width: 0; height: calc(var(--hw) * 1.42); z-index: 4; pointer-events: none;
+}
+.discard-ghost {
+  position: absolute; top: 0; left: calc(var(--slot) * (var(--hw) - 10px)); transform: translateX(-50%) rotate(var(--fr, 0deg));
+  animation: discard-away .42s ease-in forwards;
+}
+.discard-ghost .card { --w: var(--hw); }
+@keyframes discard-away { from { translate: 0 0; opacity: 1; } to { translate: 40px -170px; rotate: 18deg; opacity: 0; } }
+.opp-fan { position: relative; }
+.discard-ghost.opp-ghost { left: calc(50% + var(--slot) * 24px); transform: translateX(-50%); animation-name: discard-away-opp; }
+.opp-fan .discard-ghost .card { margin: 0; transform: none; }
+@keyframes discard-away-opp { from { translate: 0 0; opacity: 1; } to { translate: 0 70px; rotate: -12deg; opacity: 0; } }
+
+/* Przyciski akcji w stylu gry */
+.actions .btn.act {
+  border: 0; color: #fff; font-weight: 700; padding: 12px 20px; border-radius: 14px; min-width: 150px;
+  box-shadow: 0 4px 0 rgba(0,0,0,.35), 0 8px 16px rgba(0,0,0,.35); transition: transform .1s, box-shadow .1s;
+}
+.actions .btn.act:hover { transform: translateY(-1px); }
+.actions .btn.act:active { transform: translateY(3px); box-shadow: 0 1px 0 rgba(0,0,0,.35), 0 3px 8px rgba(0,0,0,.35); }
+.actions .btn.act-check, .actions .btn.act-call { background: linear-gradient(180deg, #3fa66b, #277a4a); }
+.actions .btn.act-bet, .actions .btn.act-raise, .actions .btn.act-draw { background: linear-gradient(180deg, #f2cf64, #c99a2e); color: #2a1d05; }
+.actions .btn.act-fold { background: linear-gradient(180deg, #c95050, #8f2e2e); }
+.actions .btn.act.suggested {
+  box-shadow: 0 0 0 3px #fff4cc, 0 0 20px rgba(242,210,122,.9), 0 4px 0 rgba(0,0,0,.35);
+  animation: suggest-pulse 1.6s ease-in-out infinite;
+}
+@keyframes suggest-pulse {
+  0%, 100% { box-shadow: 0 0 0 3px #fff4cc, 0 0 20px rgba(242,210,122,.9), 0 4px 0 rgba(0,0,0,.35); }
+  50% { box-shadow: 0 0 0 3px #fff4cc, 0 0 6px rgba(242,210,122,.4), 0 4px 0 rgba(0,0,0,.35); }
+}
+
+@media (max-width: 760px) {
+  .seat.me { --hw: 58px; }
+  .action-bubble { top: -24px; font-size: .72em; }
+  .actions .btn.act { min-width: 0; flex: 1 1 auto; padding: 11px 12px; }
+}
+@media (max-width: 600px) {
+  .seat.me { --hw: 58px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .action-bubble, .seat.winner .avatar, .seat.me.winner .me-bar, .actions .btn.act.suggested { animation: none !important; }
+  .discard-ghost { display: none; }
+}
+/* Telefon: liczba kolumn dopasowana do liczby rywali (jedna rywalka na środku) */
+@media (max-width: 760px) {
+  .table.table-oval.opp-1 { grid-template-columns: 1fr; }
+  .table.table-oval.opp-2 { grid-template-columns: repeat(2, 1fr); }
+  .table.table-oval.opp-3, .table.table-oval.opp-4, .table.table-oval.opp-5 { grid-template-columns: repeat(3, 1fr); }
+}

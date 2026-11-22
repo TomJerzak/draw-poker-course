@@ -17,6 +17,7 @@ import {
 import { Lesson } from '../lessons/types';
 import { pluralPl } from '../engine/cards';
 import { FreeStats, LEVEL_PL } from './screens';
+import type { Card as CardT } from '../engine/cards';
 import { Card } from './Card';
 import { AnimatedNumber, ChipStack } from './Chips';
 import { HandRankings } from './HandRankings';
@@ -39,19 +40,28 @@ function revealedSeats(g: GameState, revealAll: boolean): Set<number> {
   return new Set(sd && sd.type === 'showdown' ? sd.players : []);
 }
 
-function lastActionLabel(g: GameState, player: number): string | null {
+function lastAction(g: GameState, player: number): { label: string; at: number } | null {
   for (let i = g.events.length - 1; i >= 0; i--) {
     const e = g.events[i];
     if (e.type === 'phase' && e.phase !== 'complete' && e.phase !== 'showdown') break;
     if (e.type === 'action' && e.player === player) {
       const labels: Record<string, string> = { fold: 'Pas', check: 'Czeka', call: 'Sprawdza', bet: 'Stawia', raise: 'Podbija' };
-      return labels[e.action.type] ?? null;
+      return labels[e.action.type] ? { label: labels[e.action.type], at: i } : null;
     }
     if (e.type === 'drawn' && e.player === player) {
-      return e.discarded.length === 0 ? 'Stoi' : `Wymienia ${e.discarded.length}`;
+      return { label: e.discarded.length === 0 ? 'Stoi' : `Wymienia ${e.discarded.length}`, at: i };
     }
   }
   return null;
+}
+
+/** Wymiana gracza w bieżącym rozdaniu: odrzucone karty i miejsca w ręce, na które trafiły nowe. */
+function drawOf(events: GameState['events'], hand: CardT[], player: number): { slots: number[]; discarded: CardT[] } {
+  const ev = events.find((e) => e.type === 'drawn' && e.player === player);
+  if (!ev || ev.type !== 'drawn' || ev.discarded.length === 0) return { slots: [], discarded: [] };
+  const received = new Set(ev.received.map((c) => c.rank + c.suit));
+  const slots = hand.map((c, i) => (received.has(c.rank + c.suit) ? i : -1)).filter((i) => i >= 0);
+  return { slots, discarded: ev.discarded };
 }
 
 /** Indeks następnego zdarzenia (od `from`), które ma objaśnienie dla początkujących, albo -1. */
@@ -66,6 +76,8 @@ function nextExplained(s: Session, from: number): number {
 const AVATAR_COLORS = ['#a0522d', '#3b6ea5', '#6b4c9a', '#2e7d5b', '#9a3b5c'];
 /** Odstęp między kolejnymi kartami przy animacji rozdawania. */
 const DEAL_STEP_MS = 45;
+/** Czas odjazdu odrzuconych kart – nowe karty wjeżdżają dopiero po nim. */
+const DISCARD_MS = 320;
 
 /** Położenie rywala na łuku nad stołem (w procentach szerokości i wysokości stołu). */
 function seatPosition(k: number, n: number): { x: number; y: number } {
@@ -82,7 +94,10 @@ function dealOrder(player: number, dealer: number, n: number): number {
 function betSpotPosition(player: number, opponents: number): CSSProperties {
   if (player === HUMAN) return { left: '50%', top: 'calc(100% - 238px)' };
   const p = seatPosition(player - 1, opponents);
-  return { left: `${p.x + (50 - p.x) * 0.3}%`, top: `calc(${p.y}% + 150px)` };
+  // Rywal z boku: żetony pod jego miejscem, przesunięte po skosie w stronę środka stołu.
+  if (Math.abs(p.x - 50) > 5) return { left: `${p.x + (50 - p.x) * 0.25}%`, top: `calc(${p.y}% + 190px)` };
+  // Rywal pośrodku: tuż pod jego miejscem.
+  return { left: `${p.x}%`, top: `calc(${p.y}% + 168px)` };
 }
 
 /** Dokąd lecą żetony wygranej: do miejsca zwycięzcy. */
@@ -197,6 +212,7 @@ export function PlayScreen({ lesson, seed, onFinish, onExit, onFreeEnd }: Props)
   }
   const myDraw = visibleEvents.find((e) => e.type === 'drawn' && e.player === HUMAN);
   const newCodes = new Set(myDraw && myDraw.type === 'drawn' ? myDraw.received.map((c) => c.rank + c.suit) : []);
+  const myDrew = drawOf(visibleEvents, me.hand, HUMAN);
   const myHand = evaluateHand(me.hand);
   const wonAmount = g.events.reduce((s, e) => (e.type === 'win' ? s + e.amount : s), 0);
   const showdownText = complete ? explainShowdown(g, names) : null;
@@ -394,12 +410,20 @@ export function PlayScreen({ lesson, seed, onFinish, onExit, onFreeEnd }: Props)
           if (i === HUMAN) return null;
           const pos = seatPosition(i - 1, g.players.length - 1);
           const order = dealOrder(i, g.dealer, g.players.length);
+          const action = lastAction(g, i);
+          const drew = drawOf(visibleEvents, p.hand, i);
+          const isWinner = complete && autoDone && g.winners.includes(i);
           return (
             <div
               key={p.id}
-              className={`seat opp ${g.toAct === i ? 'active' : ''} ${p.folded ? 'folded' : ''}`}
+              className={`seat opp ${g.toAct === i ? 'active' : ''} ${p.folded ? 'folded' : ''} ${isWinner ? 'winner' : ''}`}
               style={{ ['--x' as string]: `${pos.x}%`, ['--y' as string]: `${pos.y}%` }}
             >
+              {action && (
+                <div key={`${session.handNo}-${action.at}`} className="action-bubble">
+                  {action.label}
+                </div>
+              )}
               <div className="avatar" style={{ ['--av' as string]: AVATAR_COLORS[(i - 1) % AVATAR_COLORS.length] }} aria-hidden>
                 {p.name.charAt(0)}
               </div>
@@ -414,15 +438,26 @@ export function PlayScreen({ lesson, seed, onFinish, onExit, onFreeEnd }: Props)
               <div className={`cards-row opp-fan ${revealed.has(i) ? 'revealed' : ''}`}>
                 {p.hand.map((c, k) => (
                   <Card
-                    key={`${session.handNo}-${k}`}
+                    key={`${session.handNo}-${c.rank}${c.suit}`}
                     card={c}
                     faceDown={!revealed.has(i)}
                     small
                     flippable
-                    enter="deal"
-                    delay={(k * g.players.length + order) * DEAL_STEP_MS}
+                    enter={drew.slots.includes(k) ? 'draw' : 'deal'}
+                    delay={drew.slots.includes(k) ? DISCARD_MS : (k * g.players.length + order) * DEAL_STEP_MS}
                     style={{ ['--fr' as string]: `${(k - 2) * 5}deg` }}
                   />
+                ))}
+                {/* Odrzucone karty odjeżdżają w stronę środka stołu (rewersem do góry). */}
+                {drew.slots.map((slot) => (
+                  <div
+                    key={`ghost-${session.handNo}-${slot}`}
+                    className="discard-ghost opp-ghost"
+                    style={{ ['--slot' as string]: slot - 2 }}
+                    aria-hidden
+                  >
+                    <Card faceDown small />
+                  </div>
                 ))}
               </div>
               <div className="seat-info">
@@ -432,10 +467,9 @@ export function PlayScreen({ lesson, seed, onFinish, onExit, onFreeEnd }: Props)
                   </span>
                 )}
                 {p.betThisRound > 0 && !complete && <span className="bet">w tej rundzie: {p.betThisRound}</span>}
-                <span className="status">{lastActionLabel(g, i)}</span>
               </div>
               {revealed.has(i) && !awaitingQuiz && (
-                <div className={`hand-name ${complete && autoDone && g.winners.includes(i) ? 'win' : ''}`}>
+                <div className={`hand-name ${isWinner ? 'win' : ''}`}>
                   {(p.handValue ?? evaluateHand(p.hand)).name}
                 </div>
               )}
@@ -493,7 +527,23 @@ export function PlayScreen({ lesson, seed, onFinish, onExit, onFreeEnd }: Props)
           )}
         </div>
 
-        <div className={`seat me ${g.toAct === HUMAN ? 'active' : ''} ${me.folded ? 'folded' : ''}`}>
+        <div
+          className={`seat me ${g.toAct === HUMAN ? 'active' : ''} ${me.folded ? 'folded' : ''} ${
+            complete && autoDone && g.winners.includes(HUMAN) ? 'winner' : ''
+          }`}
+        >
+          {/* Odrzucone karty odjeżdżają w stronę środka stołu, zanim wjadą nowe. */}
+          <div className="discard-layer" aria-hidden>
+            {myDrew.slots.map((slot, k) => (
+              <div
+                key={`ghost-${session.handNo}-${slot}`}
+                className="discard-ghost"
+                style={{ ['--slot' as string]: slot - 2, ['--fr' as string]: `${(slot - 2) * 4}deg` }}
+              >
+                <Card card={myDrew.discarded[k]} />
+              </div>
+            ))}
+          </div>
           <div className="cards-row big hand-fan">
             {me.hand.map((c, i) => (
               <Card
@@ -504,7 +554,7 @@ export function PlayScreen({ lesson, seed, onFinish, onExit, onFreeEnd }: Props)
                 isNew={newCodes.has(c.rank + c.suit)}
                 onClick={acts.includes('draw') ? () => toggle(i) : undefined}
                 enter={newCodes.has(c.rank + c.suit) ? 'draw' : 'deal'}
-                delay={newCodes.has(c.rank + c.suit) ? 0 : (i * g.players.length + dealOrder(HUMAN, g.dealer, g.players.length)) * DEAL_STEP_MS}
+                delay={newCodes.has(c.rank + c.suit) ? DISCARD_MS : (i * g.players.length + dealOrder(HUMAN, g.dealer, g.players.length)) * DEAL_STEP_MS}
                 style={{ ['--fr' as string]: `${(i - 2) * 4}deg`, ['--fy' as string]: `${Math.abs(i - 2) * 5}px` }}
               />
             ))}
@@ -569,7 +619,7 @@ export function PlayScreen({ lesson, seed, onFinish, onExit, onFreeEnd }: Props)
         {acts.map((t) => (
           <button
             key={t}
-            className={`btn ${t === 'fold' ? 'danger' : 'primary'} ${advice?.suggested === t ? 'suggested' : ''}`}
+            className={`btn ${t === 'fold' ? 'danger' : 'primary'} act act-${t} ${advice?.suggested === t ? 'suggested' : ''}`}
             onClick={() => doAction(t)}
           >
             {label(t)}
