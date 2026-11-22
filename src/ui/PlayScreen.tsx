@@ -115,7 +115,35 @@ function dealerPuckPosition(dealer: number, opponents: number): CSSProperties {
 }
 
 /**
- * Nazwa układu w dwóch częściach: rodzaj układu (wyróżniony) i szczegół,
+ * Zakłady z rundy licytacji, która właśnie się zakończyła (np. ostatnim sprawdzeniem rywala).
+ * Silnik od razu przenosi je do puli, więc odtwarzamy je z zapisu akcji, żeby pokazać,
+ * jak żetony trafiają do puli. Gdy rozdanie skończyło się pasem, zwraca null.
+ */
+function closedRoundBets(events: GameState['events']): { start: number; bets: number[]; last: number } | null {
+  if (events.some((e) => e.type === 'win' && e.uncontested)) return null;
+  let start = -1;
+  for (let i = events.length - 1; i >= 0; i--) {
+    const e = events[i];
+    if (e.type === 'phase' && (e.phase === 'bet1' || e.phase === 'bet2')) {
+      start = i;
+      break;
+    }
+  }
+  if (start < 0) return null;
+  const end = events.findIndex((e, i) => i > start && e.type === 'phase');
+  if (end < 0) return null;
+  const bets: number[] = [];
+  let last = -1;
+  for (let i = start + 1; i < end; i++) {
+    const e = events[i];
+    if (e.type !== 'action') continue;
+    bets[e.player] = (bets[e.player] ?? 0) + e.amount;
+    last = e.player;
+  }
+  return bets.some((b) => b > 0) ? { start, bets, last } : null;
+}
+
+/** Nazwa układu w dwóch częściach: rodzaj układu (wyróżniony) i szczegół,
  * np. „Dwie pary” + „króli i waletów”. Tekst jest ten sam co w pełnej nazwie.
  */
 function HandLabel({ value }: { value: HandValue }) {
@@ -232,6 +260,7 @@ export function PlayScreen({ lesson, seed, onFinish, onExit, onFreeEnd }: Props)
   const newCodes = new Set(myDraw && myDraw.type === 'drawn' ? myDraw.received.map((c) => c.rank + c.suit) : []);
   const myDrew = drawOf(visibleEvents, me.hand, HUMAN);
   const myHand = evaluateHand(me.hand);
+  const closed = closedRoundBets(g.events);
   const wonAmount = g.events.reduce((s, e) => (e.type === 'win' ? s + e.amount : s), 0);
   const showdownText = complete ? explainShowdown(g, names) : null;
 
@@ -513,13 +542,30 @@ export function PlayScreen({ lesson, seed, onFinish, onExit, onFreeEnd }: Props)
             ) : null,
           )}
 
+        {/* Koniec rundy licytacji: żetony całej rundy na chwilę leżą na stole, a potem zsuwają się do puli. */}
+        {chips &&
+          closed &&
+          closed.bets.map((amount, i) =>
+            amount > 0 ? (
+              <div
+                key={`close-${session.handNo}-${closed.start}-${i}`}
+                className={`bet-spot closing ${complete ? 'at-end' : i === closed.last ? `just-in ${i === HUMAN ? 'from-bottom' : 'from-top'}` : ''}`}
+                style={betSpotPosition(i, g.players.length - 1)}
+                aria-hidden
+              >
+                <ChipStack amount={amount} mixed max={8} perColumn={4} small />
+                <span className="bet-amount">{amount}</span>
+              </div>
+            ) : null,
+          )}
+
         {/* Po rozdaniu pula „przelatuje” do zwycięzcy (przy remisie – do każdego ze zwycięzców). */}
         {chips &&
           complete &&
           autoDone &&
           wonAmount > 0 &&
           g.winners.map((w) => (
-            <div key={`win-${session.handNo}-${w}`} className="win-fly" style={winTarget(w, g.players.length - 1)} aria-hidden>
+            <div key={`win-${session.handNo}-${w}`} className={`win-fly ${closed ? 'after-bets' : ''}`} style={winTarget(w, g.players.length - 1)} aria-hidden>
               <ChipStack amount={Math.floor(wonAmount / g.winners.length)} mixed max={16} perColumn={4} />
             </div>
           ))}

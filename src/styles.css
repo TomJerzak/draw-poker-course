@@ -580,3 +580,18 @@ body { background: radial-gradient(ellipse at top, #17291f 0%, #0a120d 70%) fixe
 .start-notice .notice-warning p:last-child { margin-bottom: 0; }
 .start-notice .notice-warning a { color: inherit; font-weight: 700; white-space: nowrap; }
 .start-notice .row { justify-content: center; margin-top: 20px; }
+
+/* Koniec rundy licytacji – żetony zsuwają się do puli */
+.bet-spot.closing { pointer-events: none; animation: bet-to-pot .5s ease-in .65s both; }
+.bet-spot.closing.just-in.from-top { animation: bet-slide-top .45s ease-out, bet-to-pot .5s ease-in .65s both; }
+.bet-spot.closing.just-in.from-bottom { animation: bet-slide-bottom .45s ease-out, bet-to-pot .5s ease-in .65s both; }
+@keyframes bet-slide-top { from { translate: 0 -70px; } to { translate: 0 0; } }
+@keyframes bet-slide-bottom { from { translate: 0 80px; } to { translate: 0 0; } }
+@keyframes bet-to-pot { to { left: 50%; top: 42%; opacity: 0; scale: .8; } }
+/* Po ostatniej rundzie odkrywane są karty – żetony od razu zsuwają się do puli, żeby nie zasłaniać nazw układów. */
+.bet-spot.closing.at-end { animation: bet-to-pot-end .4s ease-in both; }
+@keyframes bet-to-pot-end { from { opacity: .75; } to { left: 50%; top: 42%; opacity: 0; scale: .8; } }
+.win-fly.after-bets { animation-delay: .6s; }
+@media (prefers-reduced-motion: reduce) {
+  .bet-spot.closing { display: none; }
+}
