@@ -546,8 +546,14 @@ export function PlayScreen({ lesson, seed, onFinish, onExit, onFreeEnd }: Props)
                   </span>
                 )}
                 {p.betThisRound > 0 && !complete && <span className="bet">w tej rundzie: {p.betThisRound}</span>}
+                {/* Karty odkryte w trakcie rozdania: nazwa układu obok stosu, żeby pod nim było miejsce na żetony i pulę. */}
+                {revealed.has(i) && !awaitingQuiz && !complete && (
+                  <span className="hand-name inline">
+                    <HandLabel value={p.handValue ?? evaluateHand(p.hand)} />
+                  </span>
+                )}
               </div>
-              {revealed.has(i) && !awaitingQuiz && (
+              {revealed.has(i) && !awaitingQuiz && complete && (
                 <div className={`hand-name ${isWinner ? 'win' : ''}`}>
                   <HandLabel value={p.handValue ?? evaluateHand(p.hand)} />
                 </div>
@@ -696,7 +702,7 @@ export function PlayScreen({ lesson, seed, onFinish, onExit, onFreeEnd }: Props)
                 )}
               </div>
               {!awaitingQuiz && (
-                <div className={`hand-name ${complete && autoDone && g.winners.includes(HUMAN) ? 'win' : ''}`}>
+                <div className={`hand-name inline ${complete && autoDone && g.winners.includes(HUMAN) ? 'win' : ''}`}>
                   <HandLabel value={myHand} />
                 </div>
               )}

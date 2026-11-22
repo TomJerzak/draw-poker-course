@@ -603,3 +603,8 @@ body { background: radial-gradient(ellipse at top, #17291f 0%, #0a120d 70%) fixe
 @media (prefers-reduced-motion: reduce) {
   .bet-spot.ante { display: none; }
 }
+
+/* Nazwa układu rywala w trakcie rozdania – w jednej linii obok stosu żetonów */
+.table-oval .seat-info { align-items: center; }
+.table-oval .hand-name.inline { flex-direction: row; align-items: baseline; gap: 4px; white-space: nowrap; font-size: 1.1em; }
+.table-oval .hand-name.inline .hn-detail { font-size: .9em; }
