@@ -1,5 +1,8 @@
 import { GLOSSARY, splitTerms } from '../lessons/glossary';
 
+/** Hasła słowniczka w kolejności alfabetycznej (z polskimi literami). */
+const GLOSSARY_SORTED = [...GLOSSARY].sort((a, b) => a.term.localeCompare(b.term, 'pl'));
+
 /** Tekst z podświetlonymi pojęciami – po najechaniu lub dotknięciu pokazuje się definicja. */
 export function RichText({ text }: { text: string }) {
   return (
@@ -29,7 +32,7 @@ export function Glossary({ onClose }: { onClose: () => void }) {
           <button className="btn ghost" onClick={onClose}>Zamknij</button>
         </div>
         <dl className="glossary">
-          {GLOSSARY.map((g) => (
+          {GLOSSARY_SORTED.map((g) => (
             <div key={g.term}>
               <dt>{g.term}</dt>
               <dd>{g.definition}</dd>
