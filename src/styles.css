@@ -608,3 +608,10 @@ body { background: radial-gradient(ellipse at top, #17291f 0%, #0a120d 70%) fixe
 .table-oval .seat-info { align-items: center; }
 .table-oval .hand-name.inline { flex-direction: row; align-items: baseline; gap: 4px; white-space: nowrap; font-size: 1.1em; }
 .table-oval .hand-name.inline .hn-detail { font-size: .9em; }
+
+/* Imiona graczy w kołach zamiast inicjałów i podpisów */
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.table-oval .seat.opp .avatar { width: 54px; height: 54px; font-size: 12px; letter-spacing: -.2px; }
+@media (max-width: 760px) {
+  .table-oval .seat.opp .avatar { width: 44px; height: 44px; font-size: 10px; }
+}

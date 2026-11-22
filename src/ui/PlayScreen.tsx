@@ -111,7 +111,7 @@ function winTarget(player: number, opponents: number): CSSProperties {
 function dealerPuckPosition(dealer: number, opponents: number): CSSProperties {
   if (dealer === HUMAN) return { left: 'calc(50% + 150px)', top: 'calc(100% - 30px)' };
   const p = seatPosition(dealer - 1, opponents);
-  return { left: `calc(${p.x}% + 40px)`, top: `calc(${p.y}% + 22px)` };
+  return { left: `calc(${p.x}% + 44px)`, top: `calc(${p.y}% + 22px)` };
 }
 
 /** Czas animacji ante (wjazd i zsunięcie do puli) – zgodny ze styles.css. */
@@ -504,10 +504,11 @@ export function PlayScreen({ lesson, seed, onFinish, onExit, onFreeEnd }: Props)
                 </div>
               )}
               <div className="avatar" style={{ ['--av' as string]: AVATAR_COLORS[(i - 1) % AVATAR_COLORS.length] }} aria-hidden>
-                {p.name.charAt(0)}
+                {p.name}
               </div>
               <div className="seat-head">
-                <span className="name">{p.name}</span>
+                {/* Imię widać w kole – tu zostaje tylko dla czytników ekranu. */}
+                <span className="name sr-only">{p.name}</span>
                 {g.dealer === i && (
                   <span className="dealer-inline">
                     <DealerBadge />
@@ -682,7 +683,7 @@ export function PlayScreen({ lesson, seed, onFinish, onExit, onFreeEnd }: Props)
             </div>
             <div className="me-info">
               <div className="seat-head">
-                <span className="name">Ty</span>
+                <span className="name sr-only">Ty</span>
                 {g.dealer === HUMAN && (
                   <span className="dealer-inline">
                     <DealerBadge />
