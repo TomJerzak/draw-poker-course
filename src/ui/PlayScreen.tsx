@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { ActionType, betSize, GameState, legalActions, pot, toCall } from '../engine/game';
 import { evaluateHand } from '../engine/handEvaluator';
 import { coachAdvice, DEMO_OUTRO, explainEvent, explainShowdown, narrate } from '../lessons/coach';
@@ -60,6 +60,28 @@ function nextExplained(s: Session, from: number): number {
     if (explainEvent(s.game.events[i], names, s.game)) return i;
   }
   return -1;
+}
+
+const AVATAR_COLORS = ['#a0522d', '#3b6ea5', '#6b4c9a', '#2e7d5b', '#9a3b5c'];
+/** Odstęp między kolejnymi kartami przy animacji rozdawania. */
+const DEAL_STEP_MS = 45;
+
+/** Położenie rywala na łuku nad stołem (w procentach szerokości i wysokości stołu). */
+function seatPosition(k: number, n: number): { x: number; y: number } {
+  const theta = Math.PI * (1 - (k + 1) / (n + 1));
+  return { x: 50 + 42 * Math.cos(theta), y: 44 - 38 * Math.sin(theta) };
+}
+
+/** Którą z kolei kartę w rundzie rozdawania dostaje gracz (od lewej strony rozdającego). */
+function dealOrder(player: number, dealer: number, n: number): number {
+  return (player - dealer - 1 + n) % n;
+}
+
+/** Położenie krążka rozdającego: obok awatara rozdającego. */
+function dealerPuckPosition(dealer: number, opponents: number): CSSProperties {
+  if (dealer === HUMAN) return { left: 'calc(50% + 150px)', top: 'calc(100% - 30px)' };
+  const p = seatPosition(dealer - 1, opponents);
+  return { left: `calc(${p.x}% + 40px)`, top: `calc(${p.y}% + 22px)` };
 }
 
 function DealerBadge() {
@@ -348,33 +370,63 @@ export function PlayScreen({ lesson, seed, onFinish, onExit, onFreeEnd }: Props)
         </div>
       )}
 
-      <section className="table">
-        <div className="opponents">
-          {g.players.map((p, i) =>
-            i === HUMAN ? null : (
-              <div key={p.id} className={`seat ${g.toAct === i ? 'active' : ''} ${p.folded ? 'folded' : ''}`}>
-                <div className="seat-head">
-                  <span className="name">{p.name}</span>
-                  {g.dealer === i && <DealerBadge />}
-                </div>
-                <div className="cards-row">
-                  {p.hand.map((c, k) => (
-                    <Card key={k} card={c} faceDown={!revealed.has(i)} small />
-                  ))}
-                </div>
-                <div className="seat-info">
-                  {chips && <span>💰 {p.stack}</span>}
-                  {p.betThisRound > 0 && !complete && <span className="bet">w tej rundzie: {p.betThisRound}</span>}
-                  <span className="status">{lastActionLabel(g, i)}</span>
-                </div>
-                {revealed.has(i) && !awaitingQuiz && (
-                  <div className={`hand-name ${complete && autoDone && g.winners.includes(i) ? 'win' : ''}`}>
-                    {(p.handValue ?? evaluateHand(p.hand)).name}
-                  </div>
+      <section className={`table table-oval opp-${g.players.length - 1}`}>
+        <div className="rail" aria-hidden>
+          <div className="felt" />
+        </div>
+
+        {g.players.map((p, i) => {
+          if (i === HUMAN) return null;
+          const pos = seatPosition(i - 1, g.players.length - 1);
+          const order = dealOrder(i, g.dealer, g.players.length);
+          return (
+            <div
+              key={p.id}
+              className={`seat opp ${g.toAct === i ? 'active' : ''} ${p.folded ? 'folded' : ''}`}
+              style={{ ['--x' as string]: `${pos.x}%`, ['--y' as string]: `${pos.y}%` }}
+            >
+              <div className="avatar" style={{ ['--av' as string]: AVATAR_COLORS[(i - 1) % AVATAR_COLORS.length] }} aria-hidden>
+                {p.name.charAt(0)}
+              </div>
+              <div className="seat-head">
+                <span className="name">{p.name}</span>
+                {g.dealer === i && (
+                  <span className="dealer-inline">
+                    <DealerBadge />
+                  </span>
                 )}
               </div>
-            ),
-          )}
+              <div className={`cards-row opp-fan ${revealed.has(i) ? 'revealed' : ''}`}>
+                {p.hand.map((c, k) => (
+                  <Card
+                    key={`${session.handNo}-${k}`}
+                    card={c}
+                    faceDown={!revealed.has(i)}
+                    small
+                    flippable
+                    enter="deal"
+                    delay={(k * g.players.length + order) * DEAL_STEP_MS}
+                    style={{ ['--fr' as string]: `${(k - 2) * 5}deg` }}
+                  />
+                ))}
+              </div>
+              <div className="seat-info">
+                {chips && <span>💰 {p.stack}</span>}
+                {p.betThisRound > 0 && !complete && <span className="bet">w tej rundzie: {p.betThisRound}</span>}
+                <span className="status">{lastActionLabel(g, i)}</span>
+              </div>
+              {revealed.has(i) && !awaitingQuiz && (
+                <div className={`hand-name ${complete && autoDone && g.winners.includes(i) ? 'win' : ''}`}>
+                  {(p.handValue ?? evaluateHand(p.hand)).name}
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        {/* Krążek rozdającego – na szerokim ekranie płynnie przechodzi do następnego gracza. */}
+        <div className="dealer-puck" style={dealerPuckPosition(g.dealer, g.players.length - 1)}>
+          <DealerBadge />
         </div>
 
         <div className="center">
@@ -392,35 +444,49 @@ export function PlayScreen({ lesson, seed, onFinish, onExit, onFreeEnd }: Props)
         </div>
 
         <div className={`seat me ${g.toAct === HUMAN ? 'active' : ''} ${me.folded ? 'folded' : ''}`}>
-          <div className="seat-head">
-            <span className="name">Ty</span>
-            {g.dealer === HUMAN && <DealerBadge />}
-            {chips && (
-              <span>
-                💰 {me.stack}{' '}
-                <span className={stackDiff >= 0 ? 'pos' : 'neg'}>
-                  (bilans {stackDiff > 0 ? '+' : stackDiff < 0 ? '−' : ''}
-                  {Math.abs(stackDiff)})
-                </span>
-                {me.betThisRound > 0 && !complete && <span className="bet"> · w tej rundzie: {me.betThisRound}</span>}
-              </span>
-            )}
-          </div>
-          <div className="cards-row big">
+          <div className="cards-row big hand-fan">
             {me.hand.map((c, i) => (
               <Card
-                key={i}
+                key={`${session.handNo}-${c.rank}${c.suit}`}
                 card={c}
                 selected={selected.includes(i)}
                 hinted={acts.includes('draw') && !!advice?.discard?.includes(i)}
                 isNew={newCodes.has(c.rank + c.suit)}
                 onClick={acts.includes('draw') ? () => toggle(i) : undefined}
+                enter={newCodes.has(c.rank + c.suit) ? 'draw' : 'deal'}
+                delay={newCodes.has(c.rank + c.suit) ? 0 : (i * g.players.length + dealOrder(HUMAN, g.dealer, g.players.length)) * DEAL_STEP_MS}
+                style={{ ['--fr' as string]: `${(i - 2) * 4}deg`, ['--fy' as string]: `${Math.abs(i - 2) * 5}px` }}
               />
             ))}
           </div>
-          {!awaitingQuiz && (
-            <div className={`hand-name ${complete && autoDone && g.winners.includes(HUMAN) ? 'win' : ''}`}>{myHand.name}</div>
-          )}
+          <div className="me-bar">
+            <div className="avatar me-avatar" aria-hidden>
+              Ty
+            </div>
+            <div className="me-info">
+              <div className="seat-head">
+                <span className="name">Ty</span>
+                {g.dealer === HUMAN && (
+                  <span className="dealer-inline">
+                    <DealerBadge />
+                  </span>
+                )}
+                {chips && (
+                  <span>
+                    💰 {me.stack}{' '}
+                    <span className={stackDiff >= 0 ? 'pos' : 'neg'}>
+                      (bilans {stackDiff > 0 ? '+' : stackDiff < 0 ? '−' : ''}
+                      {Math.abs(stackDiff)})
+                    </span>
+                    {me.betThisRound > 0 && !complete && <span className="bet"> · w tej rundzie: {me.betThisRound}</span>}
+                  </span>
+                )}
+              </div>
+              {!awaitingQuiz && (
+                <div className={`hand-name ${complete && autoDone && g.winners.includes(HUMAN) ? 'win' : ''}`}>{myHand.name}</div>
+              )}
+            </div>
+          </div>
         </div>
       </section>
 

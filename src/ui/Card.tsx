@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import { Card as CardT, rankLabel, SUIT_NAME_PL, SUIT_SYMBOL } from '../engine/cards';
 
 interface Props {
@@ -9,14 +10,63 @@ interface Props {
   isNew?: boolean;
   small?: boolean;
   onClick?: () => void;
+  /** Karta, która może się odwrócić (karty rywali przy odkryciu) – rysowana z obiema stronami. */
+  flippable?: boolean;
+  /** Animacja przy pojawieniu się karty: rozdanie albo dobranie przy wymianie. */
+  enter?: 'deal' | 'draw';
+  /** Opóźnienie animacji w milisekundach (kolejność rozdawania). */
+  delay?: number;
+  /** Dodatkowe style (np. ułożenie w wachlarz). */
+  style?: CSSProperties;
 }
 
-export function Card({ card, faceDown, selected, hinted, isNew, small, onClick }: Props) {
+function Face({ card }: { card: CardT }) {
+  const rank = rankLabel(card.rank);
+  const suit = SUIT_SYMBOL[card.suit];
+  return (
+    <>
+      <span className="corner tl">
+        {rank}
+        <br />
+        {suit}
+      </span>
+      <span className="pip">{suit}</span>
+      <span className="corner br" aria-hidden>
+        {rank}
+        <br />
+        {suit}
+      </span>
+    </>
+  );
+}
+
+export function Card({ card, faceDown, selected, hinted, isNew, small, onClick, flippable, enter, delay = 0, style }: Props) {
   const cls = ['card'];
   if (small) cls.push('small');
+  if (enter) cls.push(`enter-${enter}`);
+  const st: CSSProperties = { ...style, ['--delay' as string]: `${delay}ms` };
+
+  // Karta z dwiema stronami – odwraca się płynnie, gdy przestaje być zakryta.
+  if (flippable && card) {
+    cls.push('flippable');
+    if (faceDown) cls.push('is-down');
+    if (card.suit === 'H' || card.suit === 'D') cls.push('red');
+    const label = faceDown ? 'zakryta karta' : `${rankLabel(card.rank)} ${SUIT_NAME_PL[card.suit]}`;
+    return (
+      <div className={cls.join(' ')} style={st} aria-label={label}>
+        <div className="flip-inner">
+          <div className="face front">
+            <Face card={card} />
+          </div>
+          <div className="face back-face" />
+        </div>
+      </div>
+    );
+  }
+
   if (faceDown || !card) {
     cls.push('back');
-    return <div className={cls.join(' ')} aria-label="zakryta karta" />;
+    return <div className={cls.join(' ')} style={st} aria-label="zakryta karta" />;
   }
   if (card.suit === 'H' || card.suit === 'D') cls.push('red');
   if (selected) cls.push('selected');
@@ -26,13 +76,14 @@ export function Card({ card, faceDown, selected, hinted, isNew, small, onClick }
   const label = `${rankLabel(card.rank)} ${SUIT_NAME_PL[card.suit]}${isNew ? ' (nowa)' : ''}`;
   const Tag = onClick ? 'button' : 'div';
   return (
-    <Tag className={cls.join(' ')} onClick={onClick} aria-label={label} aria-pressed={onClick ? !!selected : undefined}>
-      <span className="corner">
-        {rankLabel(card.rank)}
-        <br />
-        {SUIT_SYMBOL[card.suit]}
-      </span>
-      <span className="pip">{SUIT_SYMBOL[card.suit]}</span>
+    <Tag
+      className={cls.join(' ')}
+      style={st}
+      onClick={onClick}
+      aria-label={label}
+      aria-pressed={onClick ? !!selected : undefined}
+    >
+      <Face card={card} />
       {isNew && <span className="new-badge">nowa</span>}
     </Tag>
   );
