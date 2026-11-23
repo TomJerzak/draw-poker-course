@@ -336,7 +336,7 @@ export function FreePlaySetup({
 }) {
   const [opponents, setOpponents] = useState(initial?.opponents ?? 2);
   const [level, setLevel] = useState<BotLevel>(initial?.level ?? 'medium');
-  const [coach, setCoach] = useState(initial?.coach ?? !courseDone);
+  const [coach, setCoach] = useState(initial?.coach ?? false);
   return (
     <div className="screen narrow">
       <h1>Wolna gra</h1>
